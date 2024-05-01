@@ -26,34 +26,39 @@ public class RecipeController {
     @Autowired
     private RecipeService recipeService;
 
-    @PostMapping
-    public ResponseEntity<RecipeDTO> addRecipe(@RequestParam("recipeDTO") String recipeJson,
-                                               @RequestParam("thumbnailImage") MultipartFile thumbnailImage,
-                                               @RequestParam("otherImages") List<MultipartFile> otherImages,
-                                               @RequestParam("userId") Long userId) {
-        ObjectMapper objectMapper = new ObjectMapper();
-        RecipeDTO recipeDTO;
-        try {
-            recipeDTO = objectMapper.readValue(recipeJson, RecipeDTO.class);
-        } catch (IOException e) {
-            return ResponseEntity.badRequest().body(null);
-        }
+   @PostMapping
+public ResponseEntity<RecipeDTO> addRecipe(@RequestParam("recipeName") String recipeName,
+                                           @RequestParam("ingredients") List<String> ingredients,
+                                           @RequestParam("procedure") List<String> procedure,
+                                           @RequestParam("isVegetarian") boolean isVegetarian,
+                                           @RequestParam("thumbnailImage") MultipartFile thumbnailImage,
+                                           @RequestParam("otherImages") List<MultipartFile> otherImages,
+                                           @RequestParam("userId") Long userId) {
 
-        // Save thumbnail image
-        String thumbnailImageUrl = saveImage(thumbnailImage);
-        recipeDTO.setThumbnailImageUrl(thumbnailImageUrl);
+    // Create a new RecipeDTO and set its attributes using the provided parameters
+    RecipeDTO recipeDTO = new RecipeDTO();
+    recipeDTO.setRecipeName(recipeName);
+    recipeDTO.setIngredients(ingredients);
+    recipeDTO.setProcedure(procedure);
+    recipeDTO.setVegetarian(isVegetarian);
 
-        // Save other images
-        List<String> otherImageUrls = new ArrayList<>();
-        for (MultipartFile image : otherImages) {
-            otherImageUrls.add(saveImage(image));
-        }
-        recipeDTO.setOtherImageUrls(otherImageUrls);
+    // Save thumbnail image
+    String thumbnailImageUrl = saveImage(thumbnailImage);
+    recipeDTO.setThumbnailImageUrl(thumbnailImageUrl);
 
-        // Add recipe
-        RecipeDTO createdRecipe = recipeService.addRecipe(recipeDTO, userId);
-        return ResponseEntity.status(HttpStatus.CREATED).body(createdRecipe);
+    // Save other images
+    List<String> otherImageUrls = new ArrayList<>();
+    for (MultipartFile image : otherImages) {
+        otherImageUrls.add(saveImage(image));
     }
+    recipeDTO.setOtherImageUrls(otherImageUrls);
+
+    // Call the service method to add the recipe
+    RecipeDTO createdRecipe = recipeService.addRecipe(recipeDTO, userId);
+
+    // Return the created recipe DTO in the response
+    return ResponseEntity.status(HttpStatus.CREATED).body(createdRecipe);
+}
 
     // Method to save image
     private String saveImage(MultipartFile image) {
