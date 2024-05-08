@@ -13,7 +13,7 @@ void testGetRecipeById_RecipeFound() {
     when(recipeRepository.findById(recipeId)).thenReturn(Optional.of(existingRecipe));
 
     // Mocking ServletUriComponentsBuilder
-    UriComponentsBuilder uriComponentsBuilder = UriComponentsBuilder.fromRequest(request);
+    ServletUriComponentsBuilder uriComponentsBuilder = ServletUriComponentsBuilder.fromRequestUri(request.getRequestURI());
 
     // Call getRecipeById and expect a RecipeDTO object to be returned
     RecipeDTO resultDTO = recipeService.getRecipeById(recipeId, uriComponentsBuilder);
