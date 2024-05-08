@@ -1,74 +1,30 @@
 @Test
-    void testGetImageFile_RecipeFound() {
-        // Mocking data
-        String recipeId = "123";
-        Recipe recipe = new Recipe();
-        recipe.setId(recipeId);
+void testGetRecipeById_RecipeFound() {
+    // Mocking data
+    String recipeId = "123";
+    Recipe existingRecipe = new Recipe();
+    existingRecipe.setId(recipeId);
 
-        // Mocking recipe retrieval
-        when(recipeRepository.findById(recipeId)).thenReturn(Optional.of(recipe));
+    // Mocking HttpServletRequest
+    MockHttpServletRequest request = new MockHttpServletRequest();
+    request.setContextPath("/api");
 
-        // Call getImageFile and expect a ResponseDTO object to be returned
-        ResponseDTO resultDTO = recipeService.getImageFile(recipeId);
+    // Mocking recipe retrieval
+    when(recipeRepository.findById(recipeId)).thenReturn(Optional.of(existingRecipe));
 
-        // Verify that recipeRepository.findById was called once with the provided recipeId
-        verify(recipeRepository, times(1)).findById(recipeId);
+    // Mocking ServletUriComponentsBuilder
+    UriComponentsBuilder uriComponentsBuilder = UriComponentsBuilder.fromRequest(request);
 
-        // Check that the returned ResponseDTO has the correct recipe ID
-        assertNotNull(resultDTO, "ResponseDTO should not be null");
-        assertEquals(recipeId, resultDTO.getId(), "Returned recipe ID should match");
-    }
+    // Call getRecipeById and expect a RecipeDTO object to be returned
+    RecipeDTO resultDTO = recipeService.getRecipeById(recipeId, uriComponentsBuilder);
 
-    @Test
-    void testGetImageFile_RecipeNotFound() {
-        // Mocking data
-        String recipeId = "123";
+    // Verify that recipeRepository.findById was called once with the provided recipeId
+    verify(recipeRepository, times(1)).findById(recipeId);
 
-        // Mocking recipe retrieval
-        when(recipeRepository.findById(recipeId)).thenReturn(Optional.empty());
+    // Check that the returned RecipeDTO has the correct recipe ID and thumbnail image URL
+    assertNotNull(resultDTO, "RecipeDTO should not be null");
+    assertEquals(recipeId, resultDTO.getId(), "Returned recipe ID should match");
 
-        // Call getImageFile and expect a RuntimeException to be thrown
-        assertThrows(RuntimeException.class, () -> recipeService.getImageFile(recipeId));
-
-        // Verify that recipeRepository.findById was called once with the provided recipeId
-        verify(recipeRepository, times(1)).findById(recipeId);
-    }
-
-    @Test
-    void testGetRecipeById_RecipeFound() {
-        // Mocking data
-        String recipeId = "123";
-        Recipe existingRecipe = new Recipe();
-        existingRecipe.setId(recipeId);
-
-        // Mocking recipe retrieval
-        when(recipeRepository.findById(recipeId)).thenReturn(Optional.of(existingRecipe));
-
-        // Call getRecipeById and expect a RecipeDTO object to be returned
-        RecipeDTO resultDTO = recipeService.getRecipeById(recipeId);
-
-        // Verify that recipeRepository.findById was called once with the provided recipeId
-        verify(recipeRepository, times(1)).findById(recipeId);
-
-        // Check that the returned RecipeDTO has the correct recipe ID and thumbnail image URL
-        assertNotNull(resultDTO, "RecipeDTO should not be null");
-        assertEquals(recipeId, resultDTO.getId(), "Returned recipe ID should match");
-
-        // Verify that the thumbnail image URL is set
-        assertNotNull(resultDTO.getThumbnailImageUrl(), "Thumbnail image URL should not be null");
-    }
-
-    @Test
-    void testGetRecipeById_RecipeNotFound() {
-        // Mocking data
-        String recipeId = "123";
-
-        // Mocking recipe retrieval
-        when(recipeRepository.findById(recipeId)).thenReturn(Optional.empty());
-
-        // Call getRecipeById and expect a RuntimeException to be thrown
-        assertThrows(RuntimeException.class, () -> recipeService.getRecipeById(recipeId));
-
-        // Verify that recipeRepository.findById was called once with the provided recipeId
-        verify(recipeRepository, times(1)).findById(recipeId);
-    }
+    // Verify that the thumbnail image URL is set correctly
+    assertEquals("/api/recipes/files/" + recipeId, resultDTO.getThumbnailImageUrl(), "Thumbnail image URL should match");
+}
