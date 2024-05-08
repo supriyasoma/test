@@ -108,3 +108,132 @@ public class Recipe {
     // Getters and setters
 }
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+import static org.junit.Assert.assertNotNull;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.when;
+
+import java.util.Optional;
+
+import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnitRunner;
+
+@RunWith(MockitoJUnitRunner.class)
+public class UserServiceTest {
+
+    @InjectMocks
+    private UserService userService;
+
+    @Mock
+    private UserRepository userRepository;
+
+    @Test
+    public void testSignUp_Success() {
+        // Prepare test data
+        UserDTO userDTO = new UserDTO();
+        userDTO.setEmail("test@example.com");
+
+        // Mock repository behavior
+        when(userRepository.findByEmail(anyString())).thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class))).thenReturn(new User());
+
+        // Call the service method
+        UserDTO result = userService.signUp(userDTO);
+
+        // Assertions
+        assertNotNull(result);
+        // Add more assertions as needed
+    }
+
+    @Test(expected = UserException.class)
+    public void testSignUp_EmailExists() {
+        // Prepare test data
+        UserDTO userDTO = new UserDTO();
+        userDTO.setEmail("test@example.com");
+
+        // Mock repository behavior
+        when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(new User()));
+
+        // Call the service method
+        userService.signUp(userDTO);
+
+        // Exception expected
+    }
+
+    @Test(expected = UserException.class)
+    public void testSignUp_ErrorCreatingUser() {
+        // Prepare test data
+        UserDTO userDTO = new UserDTO();
+        userDTO.setEmail("test@example.com");
+
+        // Mock repository behavior
+        when(userRepository.findByEmail(anyString())).thenReturn(Optional.empty());
+        when(userRepository.save(any(User.class))).thenThrow(new RuntimeException());
+
+        // Call the service method
+        userService.signUp(userDTO);
+
+        // Exception expected
+    }
+
+    @Test
+    public void testLogin_Success() {
+        // Prepare test data
+        String email = "test@example.com";
+        String password = "password";
+        User user = new User();
+
+        // Mock repository behavior
+        when(userRepository.findByEmailAndPassword(email, password)).thenReturn(user);
+
+        // Call the service method
+        UserDTO result = userService.login(email, password);
+
+        // Assertions
+        assertNotNull(result);
+        // Add more assertions as needed
+    }
+
+    @Test(expected = UserException.class)
+    public void testLogin_InvalidCredentials() {
+        // Prepare test data
+        String email = "test@example.com";
+        String password = "password";
+
+        // Mock repository behavior
+        when(userRepository.findByEmailAndPassword(email, password)).thenReturn(null);
+
+        // Call the service method
+        userService.login(email, password);
+
+        // Exception expected
+    }
+}
+
