@@ -1,151 +1,20 @@
-@RestController
-@RequestMapping("/recipes")
-public class RecipeController {
-
-    @Autowired
-    private RecipeService recipeService;
-
-    @PostMapping("/{recipeId}/comments")
-    public ResponseEntity<?> addCommentToRecipe(@PathVariable String recipeId,
-                                                @RequestParam String userName,
-                                                @RequestBody Comment comment) {
-        try {
-            Recipe updatedRecipe = recipeService.addCommentToRecipe(recipeId, userName, comment);
-            return ResponseEntity.ok(updatedRecipe);
-        } catch (RecipeNotFoundException | UserNotFoundException e) {
-            return ResponseEntity.notFound().build();
-        }
-    }
-
-    @GetMapping("/{recipeId}")
-    public ResponseEntity<?> getRecipeById(@PathVariable String recipeId) {
-        try {
-            Recipe recipe = recipeService.getRecipeById(recipeId);
-            return ResponseEntity.ok(recipe);
-        } catch (RecipeNotFoundException e) {
-            return ResponseEntity.notFound().build();
-        }
-    }
-
-    // Other endpoints for recipe CRUD operations
-}
-
-
-
-
-
-
-@Service
-public class RecipeServiceImpl implements RecipeService {
-
-    @Autowired
-    private RecipeRepository recipeRepository;
-
-    @Override
-    public Recipe addCommentToRecipe(String recipeId, String userName, Comment comment) throws RecipeNotFoundException, UserNotFoundException {
-        Recipe recipe = recipeRepository.findById(recipeId).orElse(null);
-        if (recipe != null) {
-            User user = userRepository.findByFullName(userName);
-            if (user != null) {
-                comment.setUser(user);
-                comment.setRecipe(recipe);
-                recipe.getComments().add(comment);
-                return recipeRepository.save(recipe);
-            }
-            throw new UserNotFoundException("User not found with name: " + userName);
-        }
-        throw new RecipeNotFoundException("Recipe not found with ID: " + recipeId);
-    }
-
-    @Override
-    public List<CommentDTO> getCommentsForRecipe(String recipeId) throws RecipeNotFoundException {
-        Recipe recipe = recipeRepository.findById(recipeId).orElse(null);
-        if (recipe != null) {
-            List<Comment> comments = recipe.getComments();
-            List<CommentDTO> commentDTOs = new ArrayList<>();
-            for (Comment comment : comments) {
-                User user = comment.getUser();
-                CommentDTO commentDTO = new CommentDTO(comment.getId(), comment.getCommentText(), user != null ? user.getFullName() : "Unknown");
-                commentDTOs.add(commentDTO);
-            }
-            return commentDTOs;
-        }
-        throw new RecipeNotFoundException("Recipe not found with ID: " + recipeId);
-    }
-
-    // Other service methods for recipe CRUD operations
-}
-
-
-
-
-
-
-
-
-
-@Entity
-@Table(name = "recipes")
-public class Recipe {
-
-    @Id
-    @GeneratedValue(generator = "uuid")
-    @GenericGenerator(name = "uuid", strategy = "uuid2")
-    private String id;
-
-    @Column(name = "recipe_name")
-    private String recipeName;
-
-    // Other fields including photo, ingredients, procedures, isVegetarian, thumbnailImageUrl
-
-    @ManyToOne
-    @JoinColumn(name = "user_id")
-    private User user;
-
-    @OneToMany(mappedBy = "recipe", cascade = CascadeType.ALL, fetch = FetchType.EAGER)
-    private List<Comment> comments = new ArrayList<>();
-
-    // Getters and setters
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-import static org.junit.Assert.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.Optional;
 
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.junit.MockitoJUnitRunner;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-@RunWith(MockitoJUnitRunner.class)
+@ExtendWith(MockitoExtension.class)
 public class UserServiceTest {
 
     @InjectMocks
@@ -155,7 +24,7 @@ public class UserServiceTest {
     private UserRepository userRepository;
 
     @Test
-    public void testSignUp_Success() {
+    void testSignUp_Success() {
         // Prepare test data
         UserDTO userDTO = new UserDTO();
         userDTO.setEmail("test@example.com");
@@ -172,8 +41,8 @@ public class UserServiceTest {
         // Add more assertions as needed
     }
 
-    @Test(expected = UserException.class)
-    public void testSignUp_EmailExists() {
+    @Test
+    void testSignUp_EmailExists() {
         // Prepare test data
         UserDTO userDTO = new UserDTO();
         userDTO.setEmail("test@example.com");
@@ -181,14 +50,16 @@ public class UserServiceTest {
         // Mock repository behavior
         when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(new User()));
 
-        // Call the service method
-        userService.signUp(userDTO);
+        // Call the service method and assert exception
+        UserException exception = assertThrows(UserException.class, () -> userService.signUp(userDTO));
+        assertEquals("Email is already exists!", exception.getMessage());
 
-        // Exception expected
+        // Verify that findByEmail was called once with the provided email
+        verify(userRepository, times(1)).findByEmail(anyString());
     }
 
-    @Test(expected = UserException.class)
-    public void testSignUp_ErrorCreatingUser() {
+    @Test
+    void testSignUp_ErrorCreatingUser() {
         // Prepare test data
         UserDTO userDTO = new UserDTO();
         userDTO.setEmail("test@example.com");
@@ -197,14 +68,16 @@ public class UserServiceTest {
         when(userRepository.findByEmail(anyString())).thenReturn(Optional.empty());
         when(userRepository.save(any(User.class))).thenThrow(new RuntimeException());
 
-        // Call the service method
-        userService.signUp(userDTO);
+        // Call the service method and assert exception
+        UserException exception = assertThrows(UserException.class, () -> userService.signUp(userDTO));
+        assertEquals("Error creating user", exception.getMessage());
 
-        // Exception expected
+        // Verify that findByEmail was called once with the provided email
+        verify(userRepository, times(1)).findByEmail(anyString());
     }
 
     @Test
-    public void testLogin_Success() {
+    void testLogin_Success() {
         // Prepare test data
         String email = "test@example.com";
         String password = "password";
@@ -221,8 +94,8 @@ public class UserServiceTest {
         // Add more assertions as needed
     }
 
-    @Test(expected = UserException.class)
-    public void testLogin_InvalidCredentials() {
+    @Test
+    void testLogin_InvalidCredentials() {
         // Prepare test data
         String email = "test@example.com";
         String password = "password";
@@ -230,10 +103,11 @@ public class UserServiceTest {
         // Mock repository behavior
         when(userRepository.findByEmailAndPassword(email, password)).thenReturn(null);
 
-        // Call the service method
-        userService.login(email, password);
+        // Call the service method and assert exception
+        UserException exception = assertThrows(UserException.class, () -> userService.login(email, password));
+        assertEquals("Invalid email or password", exception.getMessage());
 
-        // Exception expected
+        // Verify that findByEmailAndPassword was called once with the provided email and password
+        verify(userRepository, times(1)).findByEmailAndPassword(email, password);
     }
 }
-
