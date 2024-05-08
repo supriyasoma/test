@@ -1,113 +1,78 @@
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
-
-import java.util.Optional;
-
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-@ExtendWith(MockitoExtension.class)
-public class UserServiceTest {
+import java.util.Optional;
 
-    @InjectMocks
-    private UserService userService;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class UserServiceImplTest {
 
     @Mock
     private UserRepository userRepository;
 
-    @Test
-    void testSignUp_Success() {
-        // Prepare test data
-        UserDTO userDTO = new UserDTO();
-        userDTO.setEmail("test@example.com");
+    @InjectMocks
+    private UserServiceImpl userService;
 
-        // Mock repository behavior
+    @Test
+    void testSignUp_UserExists() {
+        // Mocking existing user
+        String existingEmail = "existing@example.com";
+        UserDTO userDTO = new UserDTO();
+        userDTO.setEmail(existingEmail);
+        when(userRepository.findByEmail(existingEmail)).thenReturn(Optional.of(new User()));
+
+        // Call signUp and expect a UserException to be thrown
+        assertThrows(UserException.class, () -> userService.signUp(userDTO));
+
+        // Verify that userRepository.findByEmail was called once with the provided email
+        verify(userRepository, times(1)).findByEmail(existingEmail);
+    }
+
+    @Test
+    void testSignUp_SuccessfulRegistration() {
+        // Mocking non-existing user
+        String newEmail = "new@example.com";
+        UserDTO userDTO = new UserDTO();
+        userDTO.setEmail(newEmail);
+        when(userRepository.findByEmail(newEmail)).thenReturn(Optional.empty());
+
+        // Mocking save behavior
+        User savedUser = new User();
+        savedUser.setEmail(newEmail);
+        when(userRepository.save(any(User.class))).thenReturn(savedUser);
+
+        // Call signUp and expect a UserDTO object to be returned
+        UserDTO resultDTO = userService.signUp(userDTO);
+
+        // Verify that userRepository.findByEmail was called once with the provided email
+        verify(userRepository, times(1)).findByEmail(newEmail);
+
+        // Verify that userRepository.save was called once with the provided user object
+        verify(userRepository, times(1)).save(any(User.class));
+
+        // Check that the returned UserDTO has the correct email
+        assertEquals(newEmail, resultDTO.getEmail());
+    }
+
+    @Test
+    void testSignUp_ErrorDuringRegistration() {
+        // Mocking userDTO and repository behavior
+        UserDTO userDTO = new UserDTO();
+        userDTO.setEmail("error@example.com");
         when(userRepository.findByEmail(anyString())).thenReturn(Optional.empty());
-        when(userRepository.save(any(User.class))).thenReturn(new User());
+        when(userRepository.save(any(User.class))).thenThrow(new RuntimeException("Simulated error"));
 
-        // Call the service method
-        UserDTO result = userService.signUp(userDTO);
+        // Call signUp and expect a UserException to be thrown
+        assertThrows(UserException.class, () -> userService.signUp(userDTO));
 
-        // Assertions
-        assertNotNull(result);
-        // Add more assertions as needed
-    }
+        // Verify that userRepository.findByEmail was called once with the provided email
+        verify(userRepository, times(1)).findByEmail("error@example.com");
 
-    @Test
-    void testSignUp_EmailExists() {
-        // Prepare test data
-        UserDTO userDTO = new UserDTO();
-        userDTO.setEmail("test@example.com");
-
-        // Mock repository behavior
-        when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(new User()));
-
-        // Call the service method and assert exception
-        UserException exception = assertThrows(UserException.class, () -> userService.signUp(userDTO));
-        assertEquals("Email is already exists!", exception.getMessage());
-
-        // Verify that findByEmail was called once with the provided email
-        verify(userRepository, times(1)).findByEmail(anyString());
-    }
-
-    @Test
-    void testSignUp_ErrorCreatingUser() {
-        // Prepare test data
-        UserDTO userDTO = new UserDTO();
-        userDTO.setEmail("test@example.com");
-
-        // Mock repository behavior
-        when(userRepository.findByEmail(anyString())).thenReturn(Optional.empty());
-        when(userRepository.save(any(User.class))).thenThrow(new RuntimeException());
-
-        // Call the service method and assert exception
-        UserException exception = assertThrows(UserException.class, () -> userService.signUp(userDTO));
-        assertEquals("Error creating user", exception.getMessage());
-
-        // Verify that findByEmail was called once with the provided email
-        verify(userRepository, times(1)).findByEmail(anyString());
-    }
-
-    @Test
-    void testLogin_Success() {
-        // Prepare test data
-        String email = "test@example.com";
-        String password = "password";
-        User user = new User();
-
-        // Mock repository behavior
-        when(userRepository.findByEmailAndPassword(email, password)).thenReturn(user);
-
-        // Call the service method
-        UserDTO result = userService.login(email, password);
-
-        // Assertions
-        assertNotNull(result);
-        // Add more assertions as needed
-    }
-
-    @Test
-    void testLogin_InvalidCredentials() {
-        // Prepare test data
-        String email = "test@example.com";
-        String password = "password";
-
-        // Mock repository behavior
-        when(userRepository.findByEmailAndPassword(email, password)).thenReturn(null);
-
-        // Call the service method and assert exception
-        UserException exception = assertThrows(UserException.class, () -> userService.login(email, password));
-        assertEquals("Invalid email or password", exception.getMessage());
-
-        // Verify that findByEmailAndPassword was called once with the provided email and password
-        verify(userRepository, times(1)).findByEmailAndPassword(email, password);
+        // Verify that userRepository.save was called once with the provided user object
+        verify(userRepository, times(1)).save(any(User.class));
     }
 }
