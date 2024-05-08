@@ -1,26 +1,76 @@
- String recipeId = "123";
-    Recipe existingRecipe = new Recipe();
-    existingRecipe.setId(recipeId);
+@Test
+    void testAddCommentToRecipe_RecipeAndUserExist() {
+        // Mocking data
+        String recipeId = "123";
+        String userName = "John Doe";
+        Recipe recipe = new Recipe();
+        recipe.setId(recipeId);
+        Comment comment = new Comment();
+        User user = new User();
+        user.setFullName(userName);
 
-    // Mocking recipe retrieval
-    when(recipeRepository.findById(recipeId)).thenReturn(Optional.of(existingRecipe));
+        // Mocking repository behavior
+        when(recipeRepository.findById(recipeId)).thenReturn(Optional.of(recipe));
+        when(userRepository.findByFullName(userName)).thenReturn(Optional.of(user));
 
-    // Creating a MockHttpServletRequest
-    MockHttpServletRequest request = MockMvcRequestBuilders.get("/api/recipes/" + recipeId).buildRequest(new MockServletContext());
+        // Call addCommentToRecipe
+        Recipe resultRecipe = recipeService.addCommentToRecipe(recipeId, userName, comment);
 
-    // Mocking ServletUriComponentsBuilder
-    ServletUriComponentsBuilder uriComponentsBuilder = ServletUriComponentsBuilder.fromRequest(request);
+        // Verify that recipeRepository.findById was called once with the provided recipeId
+        verify(recipeRepository, times(1)).findById(recipeId);
 
-    // Call getRecipeById and expect a RecipeDTO object to be returned
-    RecipeDTO resultDTO = recipeService.getRecipeById(recipeId, uriComponentsBuilder);
+        // Verify that userRepository.findByFullName was called once with the provided userName
+        verify(userRepository, times(1)).findByFullName(userName);
 
-    // Verify that recipeRepository.findById was called once with the provided recipeId
-    verify(recipeRepository, times(1)).findById(recipeId);
+        // Verify that the comment is added to the recipe's comments list
+        assertTrue(recipe.getComments().contains(comment), "Comment should be added to the recipe's comments list");
 
-    // Check that the returned RecipeDTO has the correct recipe ID and thumbnail image URL
-    assertNotNull(resultDTO, "RecipeDTO should not be null");
-    assertEquals(recipeId, resultDTO.getId(), "Returned recipe ID should match");
+        // Verify that the modified recipe is saved
+        verify(recipeRepository, times(1)).save(recipe);
 
-    // Verify that the thumbnail image URL is set correctly
-    assertEquals("/api/recipes/files/" + recipeId, resultDTO.getThumbnailImageUrl(), "Thumbnail image URL should match");
-}
+        // Check that the returned recipe is the same as the modified recipe
+        assertEquals(recipe, resultRecipe, "Returned recipe should be the modified recipe");
+    }
+
+    @Test
+    void testAddCommentToRecipe_RecipeNotFound() {
+        // Mocking data
+        String recipeId = "123";
+        String userName = "John Doe";
+        Comment comment = new Comment();
+
+        // Mocking repository behavior to return empty Optional (recipe not found)
+        when(recipeRepository.findById(recipeId)).thenReturn(Optional.empty());
+
+        // Call addCommentToRecipe and expect a RuntimeException to be thrown
+        assertThrows(RuntimeException.class, () -> recipeService.addCommentToRecipe(recipeId, userName, comment));
+
+        // Verify that recipeRepository.findById was called once with the provided recipeId
+        verify(recipeRepository, times(1)).findById(recipeId);
+
+        // Verify that userRepository.findByFullName was not called
+        verifyNoInteractions(userRepository);
+    }
+
+    @Test
+    void testAddCommentToRecipe_UserNotFound() {
+        // Mocking data
+        String recipeId = "123";
+        String userName = "John Doe";
+        Comment comment = new Comment();
+        Recipe recipe = new Recipe();
+        recipe.setId(recipeId);
+
+        // Mocking repository behavior
+        when(recipeRepository.findById(recipeId)).thenReturn(Optional.of(recipe));
+        when(userRepository.findByFullName(userName)).thenReturn(Optional.empty());
+
+        // Call addCommentToRecipe and expect a UserException to be thrown
+        assertThrows(UserException.class, () -> recipeService.addCommentToRecipe(recipeId, userName, comment));
+
+        // Verify that recipeRepository.findById was called once with the provided recipeId
+        verify(recipeRepository, times(1)).findById(recipeId);
+
+        // Verify that userRepository.findByFullName was called once with the provided userName
+        verify(userRepository, times(1)).findByFullName(userName);
+    }
