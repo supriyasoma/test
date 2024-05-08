@@ -1,91 +1,96 @@
- @Test
-    void testLogin_UserFound() {
+import org.junit.jupiter.api.Test;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.Optional;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+class RecipeServiceImplTest {
+
+    @Mock
+    private RecipeRepository recipeRepository;
+
+    @Mock
+    private UserRepository userRepository;
+
+    @InjectMocks
+    private RecipeServiceImpl recipeService;
+
+    @Test
+    void testAddRecipe_UserFoundAndNameMatches() {
+        // Mocking data
+        ResponseDTO responseDTO = new ResponseDTO();
+        responseDTO.setUserName("John Doe");
+        Recipe recipe = new Recipe();
+        recipe.setData("Recipe data");
+
         // Mocking user retrieval
-        String email = "user@example.com";
-        String password = "password123";
+        Long userId = 1L;
         User user = new User();
-        user.setEmail(email);
-        user.setPassword(password);
-        when(userRepository.findByEmailAndPassword(email, password)).thenReturn(user);
+        user.setId(userId);
+        user.setFullName("John Doe");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
 
-        // Call Login and expect a UserDTO object to be returned
-        UserDTO resultDTO = userService.login(email, password);
+        // Mocking save behavior
+        when(recipeRepository.save(any(Recipe.class))).thenReturn(recipe);
 
-        // Verify that userRepository.findByEmailAndPassword was called once with the provided email and password
-        verify(userRepository, times(1)).findByEmailAndPassword(email, password);
+        // Call addRecipe and expect a ResponseDTO object to be returned
+        ResponseDTO resultDTO = recipeService.addRecipe(responseDTO, userId);
 
-        // Check that the returned UserDTO has the correct email
-        assertEquals(email, resultDTO.getEmail());
+        // Verify that userRepository.findById was called once with the provided userId
+        verify(userRepository, times(1)).findById(userId);
+
+        // Verify that recipeRepository.save was called once with the provided recipe
+        verify(recipeRepository, times(1)).save(any(Recipe.class));
+
+        // Check that the returned ResponseDTO has the correct data
+        assertEquals(responseDTO.getUserName(), resultDTO.getUserName());
+        assertEquals(recipe.getData(), resultDTO.getData());
     }
 
     @Test
-    void testLogin_UserNotFound() {
+    void testAddRecipe_UserNotFound() {
+        // Mocking data
+        ResponseDTO responseDTO = new ResponseDTO();
+
         // Mocking user retrieval
-        String email = "user@example.com";
-        String password = "password123";
-        when(userRepository.findByEmailAndPassword(email, password)).thenReturn(null);
+        Long userId = 1L;
+        when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
-        // Call Login and expect a UserException to be thrown
-        assertThrows(UserException.class, () -> userService.login(email, password));
+        // Call addRecipe and expect a UserException to be thrown
+        assertThrows(UserException.class, () -> recipeService.addRecipe(responseDTO, userId));
 
-        // Verify that userRepository.findByEmailAndPassword was called once with the provided email and password
-        verify(userRepository, times(1)).findByEmailAndPassword(email, password);
+        // Verify that userRepository.findById was called once with the provided userId
+        verify(userRepository, times(1)).findById(userId);
+
+        // Verify that recipeRepository.save was not called
+        verify(recipeRepository, never()).save(any(Recipe.class));
     }
 
     @Test
-    void testLogin_ErrorDuringLogin() {
+    void testAddRecipe_UserNameDoesNotMatch() {
+        // Mocking data
+        ResponseDTO responseDTO = new ResponseDTO();
+        responseDTO.setUserName("Jane Doe");
+
         // Mocking user retrieval
-        String email = "user@example.com";
-        String password = "password123";
-        when(userRepository.findByEmailAndPassword(email, password)).thenThrow(new RuntimeException("Simulated error"));
-
-        // Call Login and expect a UserException to be thrown
-        assertThrows(UserException.class, () -> userService.login(email, password));
-
-        // Verify that userRepository.findByEmailAndPassword was called once with the provided email and password
-        verify(userRepository, times(1)).findByEmailAndPassword(email, password);
-    }
-
-    @Test
-    void testGetUserByEmail_UserFound() {
-        // Mocking user retrieval
-        String email = "user@example.com";
+        Long userId = 1L;
         User user = new User();
-        user.setEmail(email);
-        when(userRepository.findByEmail(email)).thenReturn(Optional.of(user));
+        user.setId(userId);
+        user.setFullName("John Doe");
+        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
 
-        // Call getUserByEmail and expect a UserDTO object to be returned
-        UserDTO resultDTO = userService.getUserByEmail(email);
+        // Call addRecipe and expect a UserException to be thrown
+        assertThrows(UserException.class, () -> recipeService.addRecipe(responseDTO, userId));
 
-        // Verify that userRepository.findByEmail was called once with the provided email
-        verify(userRepository, times(1)).findByEmail(email);
+        // Verify that userRepository.findById was called once with the provided userId
+        verify(userRepository, times(1)).findById(userId);
 
-        // Check that the returned UserDTO has the correct email
-        assertEquals(email, resultDTO.getEmail());
+        // Verify that recipeRepository.save was not called
+        verify(recipeRepository, never()).save(any(Recipe.class));
     }
-
-    @Test
-    void testGetUserByEmail_UserNotFound() {
-        // Mocking user retrieval
-        String email = "user@example.com";
-        when(userRepository.findByEmail(email)).thenReturn(Optional.empty());
-
-        // Call getUserByEmail and expect a UserException to be thrown
-        assertThrows(UserException.class, () -> userService.getUserByEmail(email));
-
-        // Verify that userRepository.findByEmail was called once with the provided email
-        verify(userRepository, times(1)).findByEmail(email);
-    }
-
-    @Test
-    void testGetUserByEmail_ErrorDuringFetch() {
-        // Mocking user retrieval
-        String email = "user@example.com";
-        when(userRepository.findByEmail(email)).thenThrow(new RuntimeException("Simulated error"));
-
-        // Call getUserByEmail and expect a UserException to be thrown
-        assertThrows(UserException.class, () -> userService.getUserByEmail(email));
-
-        // Verify that userRepository.findByEmail was called once with the provided email
-        verify(userRepository, times(1)).findByEmail(email);
-    }
+}
