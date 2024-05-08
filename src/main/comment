@@ -1,19 +1,15 @@
-@Test
-void testGetRecipeById_RecipeFound() {
-    // Mocking data
-    String recipeId = "123";
+ String recipeId = "123";
     Recipe existingRecipe = new Recipe();
     existingRecipe.setId(recipeId);
-
-    // Mocking HttpServletRequest
-    MockHttpServletRequest request = new MockHttpServletRequest();
-    request.setContextPath("/api");
 
     // Mocking recipe retrieval
     when(recipeRepository.findById(recipeId)).thenReturn(Optional.of(existingRecipe));
 
+    // Creating a MockHttpServletRequest
+    MockHttpServletRequest request = MockMvcRequestBuilders.get("/api/recipes/" + recipeId).buildRequest(new MockServletContext());
+
     // Mocking ServletUriComponentsBuilder
-    ServletUriComponentsBuilder uriComponentsBuilder = ServletUriComponentsBuilder.fromRequestUri(request.getRequestURI());
+    ServletUriComponentsBuilder uriComponentsBuilder = ServletUriComponentsBuilder.fromRequest(request);
 
     // Call getRecipeById and expect a RecipeDTO object to be returned
     RecipeDTO resultDTO = recipeService.getRecipeById(recipeId, uriComponentsBuilder);
