@@ -1,96 +1,83 @@
-import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-
-import java.util.Optional;
-
-import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.*;
-
-@ExtendWith(MockitoExtension.class)
-class RecipeServiceImplTest {
-
-    @Mock
-    private RecipeRepository recipeRepository;
-
-    @Mock
-    private UserRepository userRepository;
-
-    @InjectMocks
-    private RecipeServiceImpl recipeService;
-
-    @Test
-    void testAddRecipe_UserFoundAndNameMatches() {
+@Test
+    void testEditRecipe_RecipeFound() {
         // Mocking data
+        String recipeId = "123";
         ResponseDTO responseDTO = new ResponseDTO();
-        responseDTO.setUserName("John Doe");
-        Recipe recipe = new Recipe();
-        recipe.setData("Recipe data");
+        responseDTO.setRecipeName("Updated Recipe");
+        Recipe existingRecipe = new Recipe();
+        existingRecipe.setId(recipeId);
 
-        // Mocking user retrieval
-        Long userId = 1L;
-        User user = new User();
-        user.setId(userId);
-        user.setFullName("John Doe");
-        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        // Mocking recipe retrieval
+        when(recipeRepository.findById(recipeId)).thenReturn(Optional.of(existingRecipe));
 
-        // Mocking save behavior
-        when(recipeRepository.save(any(Recipe.class))).thenReturn(recipe);
+        // Call editRecipe and expect a ResponseDTO object to be returned
+        ResponseDTO resultDTO = recipeService.editRecipe(recipeId, responseDTO);
 
-        // Call addRecipe and expect a ResponseDTO object to be returned
-        ResponseDTO resultDTO = recipeService.addRecipe(responseDTO, userId);
+        // Verify that recipeRepository.findById was called once with the provided recipeId
+        verify(recipeRepository, times(1)).findById(recipeId);
 
-        // Verify that userRepository.findById was called once with the provided userId
-        verify(userRepository, times(1)).findById(userId);
+        // Verify that existingRecipe fields were updated correctly
+        assertEquals(responseDTO.getRecipeName(), existingRecipe.getRecipeName());
 
-        // Verify that recipeRepository.save was called once with the provided recipe
-        verify(recipeRepository, times(1)).save(any(Recipe.class));
+        // Verify that recipeRepository.save was called once with the existingRecipe
+        verify(recipeRepository, times(1)).save(existingRecipe);
 
         // Check that the returned ResponseDTO has the correct data
-        assertEquals(responseDTO.getUserName(), resultDTO.getUserName());
-        assertEquals(recipe.getData(), resultDTO.getData());
+        assertEquals(responseDTO.getRecipeName(), resultDTO.getRecipeName());
     }
 
     @Test
-    void testAddRecipe_UserNotFound() {
+    void testEditRecipe_RecipeNotFound() {
         // Mocking data
+        String recipeId = "123";
         ResponseDTO responseDTO = new ResponseDTO();
 
-        // Mocking user retrieval
-        Long userId = 1L;
-        when(userRepository.findById(userId)).thenReturn(Optional.empty());
+        // Mocking recipe retrieval
+        when(recipeRepository.findById(recipeId)).thenReturn(Optional.empty());
 
-        // Call addRecipe and expect a UserException to be thrown
-        assertThrows(UserException.class, () -> recipeService.addRecipe(responseDTO, userId));
+        // Call editRecipe and expect a UserException to be thrown
+        assertThrows(UserException.class, () -> recipeService.editRecipe(recipeId, responseDTO));
 
-        // Verify that userRepository.findById was called once with the provided userId
-        verify(userRepository, times(1)).findById(userId);
+        // Verify that recipeRepository.findById was called once with the provided recipeId
+        verify(recipeRepository, times(1)).findById(recipeId);
 
         // Verify that recipeRepository.save was not called
         verify(recipeRepository, never()).save(any(Recipe.class));
     }
 
     @Test
-    void testAddRecipe_UserNameDoesNotMatch() {
+    void testDeleteRecipe_RecipeFound() {
         // Mocking data
-        ResponseDTO responseDTO = new ResponseDTO();
-        responseDTO.setUserName("Jane Doe");
+        String recipeId = "123";
+        Recipe existingRecipe = new Recipe();
 
-        // Mocking user retrieval
-        Long userId = 1L;
-        User user = new User();
-        user.setId(userId);
-        user.setFullName("John Doe");
-        when(userRepository.findById(userId)).thenReturn(Optional.of(user));
+        // Mocking recipe retrieval
+        when(recipeRepository.findById(recipeId)).thenReturn(Optional.of(existingRecipe));
 
-        // Call addRecipe and expect a UserException to be thrown
-        assertThrows(UserException.class, () -> recipeService.addRecipe(responseDTO, userId));
+        // Call deleteRecipe
+        recipeService.deleteRecipe(recipeId);
 
-        // Verify that userRepository.findById was called once with the provided userId
-        verify(userRepository, times(1)).findById(userId);
+        // Verify that recipeRepository.findById was called once with the provided recipeId
+        verify(recipeRepository, times(1)).findById(recipeId);
 
-        // Verify that recipeRepository.save was not called
-        verify(recipeRepository, never()).save(any(Recipe.class));
+        // Verify that recipeRepository.delete was called once with the existingRecipe
+        verify(recipeRepository, times(1)).delete(existingRecipe);
     }
-}
+
+    @Test
+    void testDeleteRecipe_RecipeNotFound() {
+        // Mocking data
+        String recipeId = "123";
+
+        // Mocking recipe retrieval
+        when(recipeRepository.findById(recipeId)).thenReturn(Optional.empty());
+
+        // Call deleteRecipe and expect a RuntimeException to be thrown
+        assertThrows(RuntimeException.class, () -> recipeService.deleteRecipe(recipeId));
+
+        // Verify that recipeRepository.findById was called once with the provided recipeId
+        verify(recipeRepository, times(1)).findById(recipeId);
+
+        // Verify that recipeRepository.delete was not called
+        verify(recipeRepository, never()).delete(any(Recipe.class));
+    }
