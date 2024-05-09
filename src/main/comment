@@ -1,35 +1,30 @@
 import { TestBed, ComponentFixture, fakeAsync, tick } from '@angular/core/testing';
-import { RegisterComponent } from './register.component';
-import { FormsModule } from '@angular/forms';
-import { UserService } from '../user.service';
-import { Router } from '@angular/router';
-import { of, throwError } from 'rxjs';
+import { SliderComponent } from './slider.component';
+import { RouterTestingModule } from '@angular/router/testing';
+import { RecipeService } from './recipe.service';
+import { of } from 'rxjs';
 
-describe('RegisterComponent', () => {
-  let component: RegisterComponent;
-  let fixture: ComponentFixture<RegisterComponent>;
-  let userService: jasmine.SpyObj<UserService>;
-  let router: jasmine.SpyObj<Router>;
+describe('SliderComponent', () => {
+  let component: SliderComponent;
+  let fixture: ComponentFixture<SliderComponent>;
+  let recipeService: jasmine.SpyObj<RecipeService>;
 
   beforeEach(async () => {
-    const userServiceSpy = jasmine.createSpyObj('UserService', ['createUser']);
-    const routerSpy = jasmine.createSpyObj('Router', ['navigate']);
+    const recipeServiceSpy = jasmine.createSpyObj('RecipeService', ['getRandomRecipes']);
 
     await TestBed.configureTestingModule({
-      declarations: [ RegisterComponent ],
-      imports: [ FormsModule ],
+      declarations: [ SliderComponent ],
+      imports: [ RouterTestingModule ],
       providers: [
-        { provide: UserService, useValue: userServiceSpy },
-        { provide: Router, useValue: routerSpy }
+        { provide: RecipeService, useValue: recipeServiceSpy }
       ]
     }).compileComponents();
 
-    userService = TestBed.inject(UserService) as jasmine.SpyObj<UserService>;
-    router = TestBed.inject(Router) as jasmine.SpyObj<Router>;
+    recipeService = TestBed.inject(RecipeService) as jasmine.SpyObj<RecipeService>;
   });
 
   beforeEach(() => {
-    fixture = TestBed.createComponent(RegisterComponent);
+    fixture = TestBed.createComponent(SliderComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });
@@ -38,46 +33,38 @@ describe('RegisterComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should display error message for invalid password', () => {
-    component.user.password = 'pass'; // Set an invalid password
-    component.checkPassword();
-    expect(component.htmlYouWantToAdd2).toContain('Invalid password');
-  });
+  it('should fetch random recipes on component initialization', fakeAsync(() => {
+    const mockRecipes = [{ id: 1, name: 'Recipe 1' }, { id: 2, name: 'Recipe 2' }];
+    recipeService.getRandomRecipes.and.returnValue(of(mockRecipes));
 
-  it('should display error message for invalid email', () => {
-    component.user.email = 'invalidemail'; // Set an invalid email
-    component.checkEmail();
-    expect(component.htmlYouWantToAdd).toContain('Invalid email');
-  });
-
-  it('should display error message for invalid name', () => {
-    component.user.fullname = 'J'; // Set an invalid name
-    component.checkName();
-    expect(component.htmlYouWantToAdd).toContain('Invalid name');
-  });
-
-  it('should call userService.createUser when user data is valid', fakeAsync(() => {
-    component.user = { fullname: 'John Doe', email: 'john@example.com', password: 'password123' };
-    userService.createUser.and.returnValue(of({ success: true }));
-    component.saveUser();
+    component.ngOnInit();
     tick();
-    expect(userService.createUser).toHaveBeenCalledWith(component.user);
-    expect(component.htmlYouWantToAdd).toBeUndefined(); // Ensure no error message displayed
+
+    expect(component.imageArray).toEqual(mockRecipes);
   }));
 
-  it('should navigate to login page after user creation', fakeAsync(() => {
-    component.user = { fullname: 'John Doe', email: 'john@example.com', password: 'password123' };
-    userService.createUser.and.returnValue(of({ success: true }));
-    component.saveUser();
-    tick();
-    expect(router.navigate).toHaveBeenCalledWith(['/login']);
-  }));
+  it('should navigate to recipe details page when an image is clicked', () => {
+    const navigateSpy = spyOn(component['router'], 'navigate');
 
-  it('should display error message when user creation fails', fakeAsync(() => {
-    component.user = { fullname: 'John Doe', email: 'john@example.com', password: 'password123' };
-    userService.createUser.and.returnValue(throwError('User creation error'));
-    component.saveUser();
-    tick();
-    expect(component.htmlYouWantToAdd).toContain('User creation failed');
-  }));
+    const mockRecipe = { id: 1, name: 'Recipe 1' };
+    component.redirect(mockRecipe);
+
+    expect(navigateSpy).toHaveBeenCalledWith(['recipe', mockRecipe.id]);
+  });
+
+  it('should slide to the next image when next() is called', () => {
+    component.imageArray = [{ id: 1, name: 'Recipe 1' }, { id: 2, name: 'Recipe 2' }, { id: 3, name: 'Recipe 3' }];
+    component.counter = 0;
+    component.next();
+    expect(component.counter).toEqual(1);
+  });
+
+  it('should slide to the previous image when prev() is called', () => {
+    component.imageArray = [{ id: 1, name: 'Recipe 1' }, { id: 2, name: 'Recipe 2' }, { id: 3, name: 'Recipe 3' }];
+    component.counter = 2;
+    component.prev();
+    expect(component.counter).toEqual(1);
+  });
+
+  // Add more test cases to cover edge cases and error handling
 });
