@@ -1,76 +1,67 @@
-@Test
-    void testAddCommentToRecipe_RecipeAndUserExist() {
-        // Mocking data
-        String recipeId = "123";
-        String userName = "John Doe";
-        Recipe recipe = new Recipe();
-        recipe.setId(recipeId);
-        Comment comment = new Comment();
-        User user = new User();
-        user.setFullName(userName);
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { LoginComponent } from './login.component';
+import { UserService } from '../user.service';
+import { Router } from '@angular/router';
 
-        // Mocking repository behavior
-        when(recipeRepository.findById(recipeId)).thenReturn(Optional.of(recipe));
-        when(userRepository.findByFullName(userName)).thenReturn(Optional.of(user));
+describe('LoginComponent', () => {
+  let component: LoginComponent;
+  let fixture: ComponentFixture<LoginComponent>;
+  let userServiceSpy: jasmine.SpyObj<UserService>;
+  let routerSpy: jasmine.SpyObj<Router>;
 
-        // Call addCommentToRecipe
-        Recipe resultRecipe = recipeService.addCommentToRecipe(recipeId, userName, comment);
+  beforeEach(async () => {
+    const userServiceSpyObj = jasmine.createSpyObj('UserService', ['loginUser']);
+    const routerSpyObj = jasmine.createSpyObj('Router', ['navigate']);
 
-        // Verify that recipeRepository.findById was called once with the provided recipeId
-        verify(recipeRepository, times(1)).findById(recipeId);
+    await TestBed.configureTestingModule({
+      declarations: [ LoginComponent ],
+      providers: [
+        { provide: UserService, useValue: userServiceSpyObj },
+        { provide: Router, useValue: routerSpyObj }
+      ]
+    })
+    .compileComponents();
 
-        // Verify that userRepository.findByFullName was called once with the provided userName
-        verify(userRepository, times(1)).findByFullName(userName);
+    userServiceSpy = TestBed.inject(UserService) as jasmine.SpyObj<UserService>;
+    routerSpy = TestBed.inject(Router) as jasmine.SpyObj<Router>;
+  });
 
-        // Verify that the comment is added to the recipe's comments list
-        assertTrue(recipe.getComments().contains(comment), "Comment should be added to the recipe's comments list");
+  beforeEach(() => {
+    fixture = TestBed.createComponent(LoginComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
 
-        // Verify that the modified recipe is saved
-        verify(recipeRepository, times(1)).save(recipe);
+  it('should create', () => {
+    expect(component).toBeTruthy();
+  });
 
-        // Check that the returned recipe is the same as the modified recipe
-        assertEquals(recipe, resultRecipe, "Returned recipe should be the modified recipe");
-    }
+  it('should login with valid credentials', () => {
+    const user = { email: 'test@example.com', password: 'password123' };
+    component.user = user;
+    userServiceSpy.loginUser.and.returnValue({ subscribe: () => {} });
 
-    @Test
-    void testAddCommentToRecipe_RecipeNotFound() {
-        // Mocking data
-        String recipeId = "123";
-        String userName = "John Doe";
-        Comment comment = new Comment();
+    component.login();
 
-        // Mocking repository behavior to return empty Optional (recipe not found)
-        when(recipeRepository.findById(recipeId)).thenReturn(Optional.empty());
+    expect(userServiceSpy.loginUser).toHaveBeenCalledWith(user);
+    expect(routerSpy.navigate).toHaveBeenCalledWith(['/home']);
+  });
 
-        // Call addCommentToRecipe and expect a RuntimeException to be thrown
-        assertThrows(RuntimeException.class, () -> recipeService.addCommentToRecipe(recipeId, userName, comment));
+  it('should handle invalid email', () => {
+    component.user = { email: 'invalidemail', password: 'password123' };
 
-        // Verify that recipeRepository.findById was called once with the provided recipeId
-        verify(recipeRepository, times(1)).findById(recipeId);
+    component.login();
 
-        // Verify that userRepository.findByFullName was not called
-        verifyNoInteractions(userRepository);
-    }
+    expect(component.htmlYouWantToAdd).toContain('Invalid email');
+  });
 
-    @Test
-    void testAddCommentToRecipe_UserNotFound() {
-        // Mocking data
-        String recipeId = "123";
-        String userName = "John Doe";
-        Comment comment = new Comment();
-        Recipe recipe = new Recipe();
-        recipe.setId(recipeId);
+  it('should handle invalid password', () => {
+    component.user = { email: 'test@example.com', password: 'short' };
 
-        // Mocking repository behavior
-        when(recipeRepository.findById(recipeId)).thenReturn(Optional.of(recipe));
-        when(userRepository.findByFullName(userName)).thenReturn(Optional.empty());
+    component.login();
 
-        // Call addCommentToRecipe and expect a UserException to be thrown
-        assertThrows(UserException.class, () -> recipeService.addCommentToRecipe(recipeId, userName, comment));
+    expect(component.htmlYouWantToAdd).toContain('Password should contain at least 6 characters');
+  });
 
-        // Verify that recipeRepository.findById was called once with the provided recipeId
-        verify(recipeRepository, times(1)).findById(recipeId);
-
-        // Verify that userRepository.findByFullName was called once with the provided userName
-        verify(userRepository, times(1)).findByFullName(userName);
-    }
+  // Add more test cases as needed
+});
