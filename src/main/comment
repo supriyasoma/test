@@ -44,7 +44,17 @@ describe('RegisterComponent', () => {
     expect(component.htmlYouWantToAdd2).toContain('Invalid password');
   });
 
-  // Add more test cases for other validation methods (checkEmail, checkName)
+  it('should display error message for invalid email', () => {
+    component.user.email = 'invalidemail'; // Set an invalid email
+    component.checkEmail();
+    expect(component.htmlYouWantToAdd).toContain('Invalid email');
+  });
+
+  it('should display error message for invalid name', () => {
+    component.user.fullname = 'J'; // Set an invalid name
+    component.checkName();
+    expect(component.htmlYouWantToAdd).toContain('Invalid name');
+  });
 
   it('should call userService.createUser when user data is valid', fakeAsync(() => {
     component.user = { fullname: 'John Doe', email: 'john@example.com', password: 'password123' };
@@ -63,5 +73,11 @@ describe('RegisterComponent', () => {
     expect(router.navigate).toHaveBeenCalledWith(['/login']);
   }));
 
-  // Add more test cases for error scenarios, such as when user creation fails
+  it('should display error message when user creation fails', fakeAsync(() => {
+    component.user = { fullname: 'John Doe', email: 'john@example.com', password: 'password123' };
+    userService.createUser.and.returnValue(throwError('User creation error'));
+    component.saveUser();
+    tick();
+    expect(component.htmlYouWantToAdd).toContain('User creation failed');
+  }));
 });
