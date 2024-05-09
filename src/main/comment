@@ -2,28 +2,28 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { LoginComponent } from './login.component';
 import { UserService } from '../user.service';
 import { Router } from '@angular/router';
+import { of } from 'rxjs';
 
 describe('LoginComponent', () => {
   let component: LoginComponent;
   let fixture: ComponentFixture<LoginComponent>;
-  let userServiceSpy: jasmine.SpyObj<UserService>;
-  let routerSpy: jasmine.SpyObj<Router>;
+  let userService: jasmine.SpyObj<UserService>;
+  let router: jasmine.SpyObj<Router>;
 
   beforeEach(async () => {
-    const userServiceSpyObj = jasmine.createSpyObj('UserService', ['loginUser']);
-    const routerSpyObj = jasmine.createSpyObj('Router', ['navigate']);
+    const userServiceSpy = jasmine.createSpyObj('UserService', ['loginUser']);
+    const routerSpy = jasmine.createSpyObj('Router', ['navigate']);
 
     await TestBed.configureTestingModule({
       declarations: [ LoginComponent ],
       providers: [
-        { provide: UserService, useValue: userServiceSpyObj },
-        { provide: Router, useValue: routerSpyObj }
+        { provide: UserService, useValue: userServiceSpy },
+        { provide: Router, useValue: routerSpy }
       ]
-    })
-    .compileComponents();
+    }).compileComponents();
 
-    userServiceSpy = TestBed.inject(UserService) as jasmine.SpyObj<UserService>;
-    routerSpy = TestBed.inject(Router) as jasmine.SpyObj<Router>;
+    userService = TestBed.inject(UserService) as jasmine.SpyObj<UserService>;
+    router = TestBed.inject(Router) as jasmine.SpyObj<Router>;
   });
 
   beforeEach(() => {
@@ -36,32 +36,42 @@ describe('LoginComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should login with valid credentials', () => {
-    const user = { email: 'test@example.com', password: 'password123' };
-    component.user = user;
-    userServiceSpy.loginUser.and.returnValue({ subscribe: () => {} });
-
-    component.login();
-
-    expect(userServiceSpy.loginUser).toHaveBeenCalledWith(user);
-    expect(routerSpy.navigate).toHaveBeenCalledWith(['/home']);
+  it('should navigate to login if username is not in localStorage', () => {
+    spyOn(window.localStorage, 'getItem').and.returnValue('');
+    component.ngOnInit();
+    expect(router.navigate).toHaveBeenCalledWith(['/login']);
   });
 
   it('should handle invalid email', () => {
-    component.user = { email: 'invalidemail', password: 'password123' };
-
+    component.user.email = 'invalidemail';
     component.login();
-
     expect(component.htmlYouWantToAdd).toContain('Invalid email');
   });
 
   it('should handle invalid password', () => {
-    component.user = { email: 'test@example.com', password: 'short' };
-
+    component.user.email = 'test@example.com';
+    component.user.password = 'short';
     component.login();
-
     expect(component.htmlYouWantToAdd).toContain('Password should contain at least 6 characters');
   });
 
-  // Add more test cases as needed
+  it('should login with valid credentials', () => {
+    const mockData = { fullname: 'Test User', id: 123 };
+    userService.loginUser.and.returnValue(of(JSON.stringify(mockData)));
+    component.user.email = 'test@example.com';
+    component.user.password = 'password123';
+    component.login();
+    expect(window.localStorage.getItem('username')).toEqual(mockData.fullname);
+    expect(window.localStorage.getItem('userid')).toEqual(String(mockData.id));
+    expect(router.navigate).toHaveBeenCalledWith(['/home']);
+  });
+
+  it('should handle login error', () => {
+    userService.loginUser.and.returnValue(of({}));
+    component.login();
+    expect(component.htmlYouWantToAdd).toContain('Invalid credentials');
+    expect(window.localStorage.getItem('username')).toBeNull();
+    expect(window.localStorage.getItem('userid')).toBeNull();
+  });
 });
+
