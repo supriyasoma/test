@@ -1,69 +1,49 @@
-import { TestBed, ComponentFixture, fakeAsync, tick } from '@angular/core/testing';
-import { SliderComponent } from './slider.component';
-import { RouterModule } from '@angular/router';
-import { RecipeService } from './recipe.service';
-import { of } from 'rxjs';
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { MyrecipesComponent } from './myrecipes.component';
 
-describe('SliderComponent', () => {
-  let component: SliderComponent;
-  let fixture: ComponentFixture<SliderComponent>;
-  let recipeService: jasmine.SpyObj<RecipeService>;
+describe('MyrecipesComponent', () => {
+  let component: MyrecipesComponent;
+  let fixture: ComponentFixture<MyrecipesComponent>;
 
   beforeEach(async () => {
-    const recipeServiceSpy = jasmine.createSpyObj('RecipeService', ['getRandomRecipes']);
-
     await TestBed.configureTestingModule({
-      declarations: [ SliderComponent ],
-      imports: [ RouterModule.forRoot([]) ],
-      providers: [
-        { provide: RecipeService, useValue: recipeServiceSpy }
-      ]
-    }).compileComponents();
-
-    recipeService = TestBed.inject(RecipeService) as jasmine.SpyObj<RecipeService>;
+      declarations: [ MyrecipesComponent ]
+    })
+    .compileComponents();
   });
 
   beforeEach(() => {
-    fixture = TestBed.createComponent(SliderComponent);
+    fixture = TestBed.createComponent(MyrecipesComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
   });
 
-  it('should create', () => {
+  it('should create the component', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should fetch random recipes on component initialization', fakeAsync(() => {
-    const mockRecipes = [{ id: 1, name: 'Recipe 1' }, { id: 2, name: 'Recipe 2' }];
-    recipeService.getRandomRecipes.and.returnValue(of(mockRecipes));
-
-    component.ngOnInit();
-    tick();
-
-    expect(component.imageArray).toEqual(mockRecipes);
-  }));
-
-  it('should navigate to recipe details page when an image is clicked', () => {
-    const navigateSpy = spyOn(component['router'], 'navigate');
-
-    const mockRecipe = { id: 1, name: 'Recipe 1' };
-    component.redirect(mockRecipe);
-
-    expect(navigateSpy).toHaveBeenCalledWith(['recipe', mockRecipe.id]);
+  it('should initialize recipes and filteredRecipes arrays on ngOnInit', () => {
+    expect(component.recipes).toEqual([]);
+    expect(component.filteredRecipes).toEqual([]);
   });
 
-  it('should slide to the next image when next() is called', () => {
-    component.imageArray = [{ id: 1, name: 'Recipe 1' }, { id: 2, name: 'Recipe 2' }, { id: 3, name: 'Recipe 3' }];
-    component.counter = 0;
-    component.next();
-    expect(component.counter).toEqual(1);
+  it('should update filteredRecipes array based on search term', () => {
+    component.recipes = [
+      { name: 'Recipe 1' },
+      { name: 'Recipe 2' },
+      { name: 'Another Recipe' }
+    ];
+    component.searchTerm = 'Recipe';
+    component.search();
+    expect(component.filteredRecipes.length).toEqual(2);
+    expect(component.filteredRecipes[0].name).toEqual('Recipe 1');
+    expect(component.filteredRecipes[1].name).toEqual('Recipe 2');
   });
 
-  it('should slide to the previous image when prev() is called', () => {
-    component.imageArray = [{ id: 1, name: 'Recipe 1' }, { id: 2, name: 'Recipe 2' }, { id: 3, name: 'Recipe 3' }];
-    component.counter = 2;
-    component.prev();
-    expect(component.counter).toEqual(1);
-  });
+  // Add more test cases for mouse event handlers if needed
 });
+
+
+
+
 
