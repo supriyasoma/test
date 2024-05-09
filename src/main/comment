@@ -34,27 +34,22 @@ describe('LoginComponent', () => {
   });
 });
 
-import { TestBed, ComponentFixture } from '@angular/core/testing';
-import { RecipeComponent } from './recipe.component';
-import { SweetAlertService } from 'ngx-sweetalert2'; // Import the SweetAlertService
 import { By } from '@angular/platform-browser';
+
+// Mock SweetAlert2
+const sweetAlertSpy = jasmine.createSpyObj('sweetAlert', ['fire']);
 
 describe('RecipeComponent', () => {
   let component: RecipeComponent;
   let fixture: ComponentFixture<RecipeComponent>;
-  let sweetAlertServiceSpy: jasmine.SpyObj<SweetAlertService>;
 
   beforeEach(async () => {
-    const sweetAlertServiceSpyObj = jasmine.createSpyObj('SweetAlertService', ['fire']);
-
     await TestBed.configureTestingModule({
       declarations: [ RecipeComponent ],
       providers: [
-        { provide: SweetAlertService, useValue: sweetAlertServiceSpyObj }
+        { provide: sweetAlertSpy, useValue: sweetAlertSpy }
       ]
     }).compileComponents();
-
-    sweetAlertServiceSpy = TestBed.inject(SweetAlertService) as jasmine.SpyObj<SweetAlertService>;
   });
 
   beforeEach(() => {
@@ -67,9 +62,8 @@ describe('RecipeComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should call SweetAlertService when button is clicked', () => {
+  it('should call sweetAlert.fire() when button is clicked', () => {
     const button = fixture.debugElement.query(By.css('button'));
     button.triggerEventHandler('click', null);
-    expect(sweetAlertServiceSpy.fire).toHaveBeenCalled();
+    expect(sweetAlertSpy.fire).toHaveBeenCalled();
   });
-});
