@@ -1,52 +1,42 @@
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.mock.web.MockMultipartFile;
-
-import java.io.IOException;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.mockito.Mockito.*;
-
-@ExtendWith(MockitoExtension.class)
-public class RecipeControllerTest {
-
-    @Mock
-    private RecipeService recipeService;
-
-    @InjectMocks
-    private RecipeController recipeController;
-
-    @Test
-    public void testUploadRecipe() throws IOException {
-        // Prepare mock data
+@Test
+    public void testEditRecipe() throws Exception {
+        String recipeId = "123";
         String recipeName = "Test Recipe";
         String ingredients = "Ingredient 1, Ingredient 2";
         String procedures = "Step 1, Step 2";
         boolean isVegetarian = true;
-        MockMultipartFile thumbnailImage = new MockMultipartFile("thumbnailImage", "image.jpg", "image/jpeg", new byte[0]);
-        Long userId = 123L;
-        String userName = "test_user";
+        Long userId = 456L;
 
-        // Mock recipe service response
-        ResponseDTO responseDTO = new ResponseDTO();
-        responseDTO.setRecipeName(recipeName);
-        responseDTO.setIngredients(ingredients);
-        responseDTO.setProcedures(procedures);
-        responseDTO.setVegetarian(isVegetarian);
-        responseDTO.setUserName(userName);
-        when(recipeService.addRecipe(any(ResponseDTO.class), eq(userId))).thenReturn(responseDTO);
+        ResponseEntity<String> responseEntity = recipeController.editRecipe(recipeId, recipeName, ingredients, procedures, isVegetarian, userId);
 
-        // Call the controller method
-        ResponseEntity<String> responseEntity = recipeController.uploadRecipe(recipeName, ingredients, procedures, isVegetarian, thumbnailImage, userId, userName);
-
-        // Verify interactions and assertions
-        verify(recipeService, times(1)).addRecipe(any(ResponseDTO.class), eq(userId));
+        verify(recipeService, times(1)).editRecipe(recipeId, recipeName, ingredients, procedures, isVegetarian, userId);
         assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertEquals("CREATED RECIPE SUCCESSFULLY", responseEntity.getBody());
+        assertEquals("UPDATED RECIPE SUCCESSFULLY " + recipeName, responseEntity.getBody());
     }
-}
+
+    @Test
+    public void testDeleteRecipe() {
+        String recipeId = "123";
+        
+        ResponseEntity<String> responseEntity = recipeController.deleteRecipe(recipeId);
+
+        verify(recipeService, times(1)).deleteRecipe(recipeId);
+        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
+        assertEquals("DELETED RECIPE SUCCESSFULLY", responseEntity.getBody());
+    }
+
+    @Test
+    public void testGetAllRecipes() {
+        List<RecipeResponseDTO> recipeList = Arrays.asList(
+                new RecipeResponseDTO("1", "Recipe 1", "Ingredients 1", "Procedures 1", true),
+                new RecipeResponseDTO("2", "Recipe 2", "Ingredients 2", "Procedures 2", false)
+        );
+
+        when(recipeService.getAllRecipes()).thenReturn(recipeList);
+
+        ResponseEntity<List<RecipeResponseDTO>> responseEntity = recipeController.getAllRecipes();
+
+        verify(recipeService, times(1)).getAllRecipes();
+        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
+        assertEquals(recipeList, responseEntity.getBody());
+    }
