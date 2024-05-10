@@ -1,79 +1,52 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { EditrecipeComponent } from './editrecipe.component';
-import { Recipeservice } from './recipe.service';
-import { of, throwError } from 'rxjs';
-import Swal from 'sweetalert2';
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.mock.web.MockMultipartFile;
 
-describe('EditrecipeComponent', () => {
-  let component: EditrecipeComponent;
-  let fixture: ComponentFixture<EditrecipeComponent>;
-  let recipeServiceSpy: jasmine.SpyObj<Recipeservice>;
+import java.io.IOException;
 
-  beforeEach(async () => {
-    recipeServiceSpy = jasmine.createSpyObj('Recipeservice', ['editRecipe', 'getRecipeById']);
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.*;
 
-    await TestBed.configureTestingModule({
-      declarations: [ EditrecipeComponent ],
-      providers: [{ provide: Recipeservice, useValue: recipeServiceSpy }]
-    })
-    .compileComponents();
-  });
+@ExtendWith(MockitoExtension.class)
+public class RecipeControllerTest {
 
-  beforeEach(() => {
-    fixture = TestBed.createComponent(EditrecipeComponent);
-    component = fixture.componentInstance;
-  });
+    @Mock
+    private RecipeService recipeService;
 
-  it('should create the component', () => {
-    expect(component).toBeTruthy();
-  });
+    @InjectMocks
+    private RecipeController recipeController;
 
-  it('should load recipe data by id on ngOnInit', () => {
-    const mockRecipeData = {
-      id: 1,
-      recipeName: 'Test Recipe',
-      ingredients: 'Ingredient 1, Ingredient 2',
-      procedures: 'Step 1, Step 2',
-      isVegetarian: true,
-      userId: 1,
-      username: 'testuser',
-      thumbnailImage: 'thumbnail.jpg'
-    };
-    recipeServiceSpy.getRecipeById.and.returnValue(of(mockRecipeData));
+    @Test
+    public void testUploadRecipe() throws IOException {
+        // Prepare mock data
+        String recipeName = "Test Recipe";
+        String ingredients = "Ingredient 1, Ingredient 2";
+        String procedures = "Step 1, Step 2";
+        boolean isVegetarian = true;
+        MockMultipartFile thumbnailImage = new MockMultipartFile("thumbnailImage", "image.jpg", "image/jpeg", new byte[0]);
+        Long userId = 123L;
+        String userName = "test_user";
 
-    component.ngOnInit();
+        // Mock recipe service response
+        ResponseDTO responseDTO = new ResponseDTO();
+        responseDTO.setRecipeName(recipeName);
+        responseDTO.setIngredients(ingredients);
+        responseDTO.setProcedures(procedures);
+        responseDTO.setVegetarian(isVegetarian);
+        responseDTO.setUserName(userName);
+        when(recipeService.addRecipe(any(ResponseDTO.class), eq(userId))).thenReturn(responseDTO);
 
-    expect(component.id).toBe(1);
-    expect(component.RecipeData.recipeName).toBe('Test Recipe');
-    expect(component.Process).toEqual(['Step 1', 'Step 2']);
-    // Add more expectations for other properties
-  });
+        // Call the controller method
+        ResponseEntity<String> responseEntity = recipeController.uploadRecipe(recipeName, ingredients, procedures, isVegetarian, thumbnailImage, userId, userName);
 
-  it('should navigate to recipe detail page after editing recipe successfully', () => {
-    const mockRecipeData = { id: 1 };
-    recipeServiceSpy.getRecipeById.and.returnValue(of(mockRecipeData));
-    recipeServiceSpy.editRecipe.and.returnValue(of({}));
-
-    component.id = 1;
-    component.edit();
-
-    expect(recipeServiceSpy.editRecipe).toHaveBeenCalledOnceWith(1, jasmine.any(FormData));
-    expect(Swal.fire).toHaveBeenCalledWith('Recipe updated successfully!');
-    expect(component.router.navigate).toHaveBeenCalledWith(['/recipe', 1]);
-  });
-
-  it('should display an alert if an error occurs during recipe editing', () => {
-    const errorMessage = 'Error occurred';
-    recipeServiceSpy.getRecipeById.and.returnValue(of({}));
-    recipeServiceSpy.editRecipe.and.returnValue(throwError(errorMessage));
-
-    component.id = 1;
-    component.edit();
-
-    expect(component.print).toHaveBeenCalled();
-    expect(window.alert).toHaveBeenCalledWith('Error occurred');
-  });
-
-  // Add more test cases as needed
-});
-
+        // Verify interactions and assertions
+        verify(recipeService, times(1)).addRecipe(any(ResponseDTO.class), eq(userId));
+        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
+        assertEquals("CREATED RECIPE SUCCESSFULLY", responseEntity.getBody());
+    }
+}
