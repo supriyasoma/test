@@ -1,42 +1,46 @@
 @Test
-    public void testEditRecipe() throws Exception {
+    public void testGetAllRandomRecipes() {
+        List<RandomRecipeResponseDTO> randomRecipeList = Arrays.asList(
+                new RandomRecipeResponseDTO("1", "Random Recipe 1"),
+                new RandomRecipeResponseDTO("2", "Random Recipe 2")
+        );
+
+        when(recipeService.getRandomTenRecipes()).thenReturn(randomRecipeList);
+
+        ResponseEntity<List<RandomRecipeResponseDTO>> responseEntity = recipeController.getAllRandomRecipes();
+
+        verify(recipeService, times(1)).getRandomTenRecipes();
+        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
+        assertEquals(randomRecipeList, responseEntity.getBody());
+    }
+
+    @Test
+    public void testGetRecipeById() {
         String recipeId = "123";
-        String recipeName = "Test Recipe";
-        String ingredients = "Ingredient 1, Ingredient 2";
-        String procedures = "Step 1, Step 2";
-        boolean isVegetarian = true;
+        RecipeDTO recipeDTO = new RecipeDTO(recipeId, "Recipe 1", "Ingredients 1", "Procedures 1", true);
+
+        when(recipeService.getRecipeById(recipeId)).thenReturn(recipeDTO);
+
+        ResponseEntity<RecipeDTO> responseEntity = recipeController.getRecipeById(recipeId);
+
+        verify(recipeService, times(1)).getRecipeById(recipeId);
+        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
+        assertEquals(recipeDTO, responseEntity.getBody());
+    }
+
+    @Test
+    public void testGetRecipesByUserId() {
         Long userId = 456L;
-
-        ResponseEntity<String> responseEntity = recipeController.editRecipe(recipeId, recipeName, ingredients, procedures, isVegetarian, userId);
-
-        verify(recipeService, times(1)).editRecipe(recipeId, recipeName, ingredients, procedures, isVegetarian, userId);
-        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertEquals("UPDATED RECIPE SUCCESSFULLY " + recipeName, responseEntity.getBody());
-    }
-
-    @Test
-    public void testDeleteRecipe() {
-        String recipeId = "123";
-        
-        ResponseEntity<String> responseEntity = recipeController.deleteRecipe(recipeId);
-
-        verify(recipeService, times(1)).deleteRecipe(recipeId);
-        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertEquals("DELETED RECIPE SUCCESSFULLY", responseEntity.getBody());
-    }
-
-    @Test
-    public void testGetAllRecipes() {
         List<RecipeResponseDTO> recipeList = Arrays.asList(
                 new RecipeResponseDTO("1", "Recipe 1", "Ingredients 1", "Procedures 1", true),
                 new RecipeResponseDTO("2", "Recipe 2", "Ingredients 2", "Procedures 2", false)
         );
 
-        when(recipeService.getAllRecipes()).thenReturn(recipeList);
+        when(recipeService.getRecipesByUser(userId)).thenReturn(recipeList);
 
-        ResponseEntity<List<RecipeResponseDTO>> responseEntity = recipeController.getAllRecipes();
+        ResponseEntity<List<RecipeResponseDTO>> responseEntity = recipeController.getRecipesByUserId(userId);
 
-        verify(recipeService, times(1)).getAllRecipes();
+        verify(recipeService, times(1)).getRecipesByUser(userId);
         assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
         assertEquals(recipeList, responseEntity.getBody());
     }
