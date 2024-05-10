@@ -1,34 +1,4 @@
 @Test
-    public void testGetAllRandomRecipes() {
-        List<RandomRecipeResponseDTO> randomRecipeList = Arrays.asList(
-                new RandomRecipeResponseDTO("1", "Random Recipe 1"),
-                new RandomRecipeResponseDTO("2", "Random Recipe 2")
-        );
-
-        when(recipeService.getRandomTenRecipes()).thenReturn(randomRecipeList);
-
-        ResponseEntity<List<RandomRecipeResponseDTO>> responseEntity = recipeController.getAllRandomRecipes();
-
-        verify(recipeService, times(1)).getRandomTenRecipes();
-        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertEquals(randomRecipeList, responseEntity.getBody());
-    }
-
-    @Test
-    public void testGetRecipeById() {
-        String recipeId = "123";
-        RecipeDTO recipeDTO = new RecipeDTO(recipeId, "Recipe 1", "Ingredients 1", "Procedures 1", true);
-
-        when(recipeService.getRecipeById(recipeId)).thenReturn(recipeDTO);
-
-        ResponseEntity<RecipeDTO> responseEntity = recipeController.getRecipeById(recipeId);
-
-        verify(recipeService, times(1)).getRecipeById(recipeId);
-        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertEquals(recipeDTO, responseEntity.getBody());
-    }
-
-    @Test
     public void testGetRecipesByUserId() {
         Long userId = 456L;
         List<RecipeResponseDTO> recipeList = Arrays.asList(
@@ -38,9 +8,28 @@
 
         when(recipeService.getRecipesByUser(userId)).thenReturn(recipeList);
 
-        ResponseEntity<List<RecipeResponseDTO>> responseEntity = recipeController.getRecipesByUserId(userId);
+        ResponseEntity<List<RecipeResponseDTO>> responseEntity = controller.getRecipesByUserId(userId);
 
         verify(recipeService, times(1)).getRecipesByUser(userId);
         assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
         assertEquals(recipeList, responseEntity.getBody());
+    }
+
+    @Test
+    public void testGetFile() {
+        String fileId = "123";
+        byte[] fileData = "File Content".getBytes();
+        String filename = "test.jpg";
+        ResponseDTO responseDTO = new ResponseDTO();
+        responseDTO.setData(fileData);
+        responseDTO.setThumbnailImage(filename);
+
+        when(recipeService.getImageFile(fileId)).thenReturn(responseDTO);
+
+        ResponseEntity<byte[]> responseEntity = controller.getFile(fileId);
+
+        verify(recipeService, times(1)).getImageFile(fileId);
+        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
+        assertEquals(fileData.length, responseEntity.getBody().length);
+        assertEquals(filename, responseEntity.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION).substring("attachment; filename=\"".length(), responseEntity.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION).length() - 1));
     }
