@@ -1,74 +1,26 @@
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MyrecipesComponent } from './myrecipes.component';
+import { EditrecipeComponent } from './editrecipe.component';
+import { Recipeservice } from './recipe.service';
+import { of, throwError } from 'rxjs';
+import Swal from 'sweetalert2';
 
-describe('MyrecipesComponent', () => {
-  let component: MyrecipesComponent;
-  let fixture: ComponentFixture<MyrecipesComponent>;
+describe('EditrecipeComponent', () => {
+  let component: EditrecipeComponent;
+  let fixture: ComponentFixture<EditrecipeComponent>;
+  let recipeServiceSpy: jasmine.SpyObj<Recipeservice>;
 
   beforeEach(async () => {
+    recipeServiceSpy = jasmine.createSpyObj('Recipeservice', ['editRecipe', 'getRecipeById']);
+
     await TestBed.configureTestingModule({
-      declarations: [ MyrecipesComponent ]
+      declarations: [ EditrecipeComponent ],
+      providers: [{ provide: Recipeservice, useValue: recipeServiceSpy }]
     })
     .compileComponents();
   });
 
   beforeEach(() => {
-    fixture = TestBed.createComponent(MyrecipesComponent);
-    component = fixture.componentInstance;
-    fixture.detectChanges();
-  });
-
-  it('should create the component', () => {
-    expect(component).toBeTruthy();
-  });
-
-  it('should initialize recipes and filteredRecipes arrays on ngOnInit', () => {
-    expect(component.recipes).toEqual([]);
-    expect(component.filteredRecipes).toEqual([]);
-  });
-
-  it('should update filteredRecipes array based on search term', () => {
-    component.recipes = [
-      { name: 'Recipe 1' },
-      { name: 'Recipe 2' },
-      { name: 'Another Recipe' }
-    ];
-    component.searchTerm = 'Recipe';
-    component.search();
-    expect(component.filteredRecipes.length).toEqual(2);
-    expect(component.filteredRecipes[0].name).toEqual('Recipe 1');
-    expect(component.filteredRecipes[1].name).toEqual('Recipe 2');
-  });
-
-  // Add more test cases for mouse event handlers if needed
-});
-
-
-
-
-
-import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { MyrecipesComponent } from './myrecipes.component';
-import { RecipeService } from './recipe.service';
-import { of } from 'rxjs';
-
-describe('MyrecipesComponent', () => {
-  let component: MyrecipesComponent;
-  let fixture: ComponentFixture<MyrecipesComponent>;
-  let recipeServiceSpy: jasmine.SpyObj<RecipeService>;
-
-  beforeEach(async () => {
-    recipeServiceSpy = jasmine.createSpyObj('RecipeService', ['getUserRecipes']);
-
-    await TestBed.configureTestingModule({
-      declarations: [ MyrecipesComponent ],
-      providers: [{ provide: RecipeService, useValue: recipeServiceSpy }]
-    })
-    .compileComponents();
-  });
-
-  beforeEach(() => {
-    fixture = TestBed.createComponent(MyrecipesComponent);
+    fixture = TestBed.createComponent(EditrecipeComponent);
     component = fixture.componentInstance;
   });
 
@@ -76,27 +28,52 @@ describe('MyrecipesComponent', () => {
     expect(component).toBeTruthy();
   });
 
-  it('should initialize recipes and filteredRecipes arrays on ngOnInit', () => {
-    const recipes = [{ name: 'Recipe 1' }, { name: 'Recipe 2' }];
-    recipeServiceSpy.getUserRecipes.and.returnValue(of(recipes));
-    fixture.detectChanges();
+  it('should load recipe data by id on ngOnInit', () => {
+    const mockRecipeData = {
+      id: 1,
+      recipeName: 'Test Recipe',
+      ingredients: 'Ingredient 1, Ingredient 2',
+      procedures: 'Step 1, Step 2',
+      isVegetarian: true,
+      userId: 1,
+      username: 'testuser',
+      thumbnailImage: 'thumbnail.jpg'
+    };
+    recipeServiceSpy.getRecipeById.and.returnValue(of(mockRecipeData));
 
-    expect(component.recipes).toEqual(recipes);
-    expect(component.filteredRecipes).toEqual(recipes);
+    component.ngOnInit();
+
+    expect(component.id).toBe(1);
+    expect(component.RecipeData.recipeName).toBe('Test Recipe');
+    expect(component.Process).toEqual(['Step 1', 'Step 2']);
+    // Add more expectations for other properties
   });
 
-  it('should update filteredRecipes array based on search term', () => {
-    component.recipes = [
-      { name: 'Pizza' },
-      { name: 'Pasta' },
-      { name: 'Salad' }
-    ];
-    component.searchTerm = 'Pa'; // Search term matching 'Pasta' and 'Salad'
-    component.search();
-    expect(component.filteredRecipes.length).toEqual(2);
-    expect(component.filteredRecipes[0].name).toEqual('Pasta');
-    expect(component.filteredRecipes[1].name).toEqual('Salad');
+  it('should navigate to recipe detail page after editing recipe successfully', () => {
+    const mockRecipeData = { id: 1 };
+    recipeServiceSpy.getRecipeById.and.returnValue(of(mockRecipeData));
+    recipeServiceSpy.editRecipe.and.returnValue(of({}));
+
+    component.id = 1;
+    component.edit();
+
+    expect(recipeServiceSpy.editRecipe).toHaveBeenCalledOnceWith(1, jasmine.any(FormData));
+    expect(Swal.fire).toHaveBeenCalledWith('Recipe updated successfully!');
+    expect(component.router.navigate).toHaveBeenCalledWith(['/recipe', 1]);
   });
 
-  // Add more test cases for other methods if needed
+  it('should display an alert if an error occurs during recipe editing', () => {
+    const errorMessage = 'Error occurred';
+    recipeServiceSpy.getRecipeById.and.returnValue(of({}));
+    recipeServiceSpy.editRecipe.and.returnValue(throwError(errorMessage));
+
+    component.id = 1;
+    component.edit();
+
+    expect(component.print).toHaveBeenCalled();
+    expect(window.alert).toHaveBeenCalledWith('Error occurred');
+  });
+
+  // Add more test cases as needed
 });
+
