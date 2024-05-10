@@ -1,35 +1,24 @@
 @Test
-    public void testGetRecipesByUserId() {
-        Long userId = 456L;
-        List<RecipeResponseDTO> recipeList = Arrays.asList(
-                new RecipeResponseDTO("1", "Recipe 1", "Ingredients 1", "Procedures 1", true),
-                new RecipeResponseDTO("2", "Recipe 2", "Ingredients 2", "Procedures 2", false)
-        );
+    public void testEditImage() throws IOException {
+        String recipeId = "123";
+        MockMultipartFile thumbnailImage = new MockMultipartFile("thumbnailImage", "image.jpg", "image/jpeg", new byte[0]);
 
-        when(recipeService.getRecipesByUser(userId)).thenReturn(recipeList);
+        ResponseEntity<String> responseEntity = userController.editImage(recipeId, thumbnailImage);
 
-        ResponseEntity<List<RecipeResponseDTO>> responseEntity = controller.getRecipesByUserId(userId);
-
-        verify(recipeService, times(1)).getRecipesByUser(userId);
+        verify(recipeService, times(1)).editImage(recipeId, thumbnailImage);
         assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertEquals(recipeList, responseEntity.getBody());
+        assertEquals("UPDATED RECIPE_SUCCESSFULLY " + recipeId, responseEntity.getBody());
     }
 
     @Test
-    public void testGetFile() {
-        String fileId = "123";
-        byte[] fileData = "File Content".getBytes();
-        String filename = "test.jpg";
-        ResponseDTO responseDTO = new ResponseDTO();
-        responseDTO.setData(fileData);
-        responseDTO.setThumbnailImage(filename);
+    public void testAddCommentToRecipe() {
+        String recipeId = "123";
+        String userName = "test_user";
+        Comment comment = new Comment("This is a test comment");
 
-        when(recipeService.getImageFile(fileId)).thenReturn(responseDTO);
+        ResponseEntity<?> responseEntity = userController.addCommentToRecipe(recipeId, userName, comment);
 
-        ResponseEntity<byte[]> responseEntity = controller.getFile(fileId);
-
-        verify(recipeService, times(1)).getImageFile(fileId);
+        verify(recipeService, times(1)).addCommentToRecipe(recipeId, userName, comment);
         assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertEquals(fileData.length, responseEntity.getBody().length);
-        assertEquals(filename, responseEntity.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION).substring("attachment; filename=\"".length(), responseEntity.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION).length() - 1));
+        assertEquals("POSTED_COMMENT_SUCCESSFULLY", responseEntity.getBody());
     }
