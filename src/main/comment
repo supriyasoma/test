@@ -1,24 +1,18 @@
-@Test
-    public void testEditImage() throws IOException {
-        String recipeId = "123";
-        MockMultipartFile thumbnailImage = new MockMultipartFile("thumbnailImage", "image.jpg", "image/jpeg", new byte[0]);
+@Generated
+private String getComplianceAnomaliesPerct(List<String> listIsola, String codeBicano, String countryRisk, BigInteger numbAno, BigInteger numbOpe) {
+    Double percentage = MathHelper.calcPerCent(numbAno, numbOpe);
 
-        ResponseEntity<String> responseEntity = userController.editImage(recipeId, thumbnailImage);
-
-        verify(recipeService, times(1)).editImage(recipeId, thumbnailImage);
-        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertEquals("UPDATED RECIPE_SUCCESSFULLY " + recipeId, responseEntity.getBody());
+    if (percentage == null) {
+        return "";
     }
 
-    @Test
-    public void testAddCommentToRecipe() {
-        String recipeId = "123";
-        String userName = "test_user";
-        Comment comment = new Comment("This is a test comment");
+    boolean isLowMedLowAnomaly = LOW_MEDLOW_LIST.contains(countryRisk) && percentage >= 5d && numbOpe.intValue() >= 200;
+    boolean isHighMedHighAnomaly = HIGH_MEDHIGH_LIST.contains(countryRisk) && !listIsola.contains(codeBicano.substring(4, 6)) && percentage >= 2.5d && numbOpe.intValue() >= 200;
+    boolean isHighBlacklistAnomaly = countryRisk.equals("HIGH") && listIsola.contains(codeBicano.substring(4, 6));
 
-        ResponseEntity<?> responseEntity = userController.addCommentToRecipe(recipeId, userName, comment);
-
-        verify(recipeService, times(1)).addCommentToRecipe(recipeId, userName, comment);
-        assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
-        assertEquals("POSTED_COMMENT_SUCCESSFULLY", responseEntity.getBody());
+    if (isLowMedLowAnomaly || isHighMedHighAnomaly || isHighBlacklistAnomaly) {
+        return percentage.toString();
     }
+
+    return "";
+}
