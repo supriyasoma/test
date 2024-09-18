@@ -1,18 +1,3 @@
-@Generated
-private String getComplianceAnomaliesPerct(List<String> listIsola, String codeBicano, String countryRisk, BigInteger numbAno, BigInteger numbOpe) {
-    Double percentage = MathHelper.calcPerCent(numbAno, numbOpe);
+${sgmpr_success_status}: ${replaceAll(timestamp(), "(\\d{4}-\\d{2}-\\d{2}).*", "$1")}</argument>
 
-    if (percentage == null) {
-        return "";
-    }
-
-    boolean isLowMedLowAnomaly = LOW_MEDLOW_LIST.contains(countryRisk) && percentage >= 5d && numbOpe.intValue() >= 200;
-    boolean isHighMedHighAnomaly = HIGH_MEDHIGH_LIST.contains(countryRisk) && !listIsola.contains(codeBicano.substring(4, 6)) && percentage >= 2.5d && numbOpe.intValue() >= 200;
-    boolean isHighBlacklistAnomaly = countryRisk.equals("HIGH") && listIsola.contains(codeBicano.substring(4, 6));
-
-    if (isLowMedLowAnomaly || isHighMedHighAnomaly || isHighBlacklistAnomaly) {
-        return percentage.toString();
-    }
-
-    return "";
-}
+<file>${sgmpr}#sgmpr.sh</file
