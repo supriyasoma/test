@@ -1,41 +1,107 @@
-it('should handle errors in the catch block for searchAggregate', () => {
-  const formGroup = new FormGroup({});
-  const serviceName = 'testService';
+import { TestBed } from '@angular/core/testing';
+import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
+import { RestService } from './rest.service';  // Path to the RestService
+import { AppEnvironment } from './app-environment'; // Assuming AppEnvironment is imported correctly
+import { BestService } from './best.service';  // Assuming BestService is imported correctly
 
-  spyOn(console, 'error'); // Spy on console.error
+describe('RestService', () => {
+  let service: RestService;
+  let httpMock: HttpTestingController;
+  let mockAppEnv: AppEnvironment;
 
-  service.searchAggregate(formGroup, serviceName).subscribe({
-    next: () => fail('Expected an error, not a success'),
-    error: () => {
-      // Expect the error to be logged
-      expect(console.error).toHaveBeenCalledWith('Error:', jasmine.anything());
-    }
+  beforeEach(() => {
+    mockAppEnv = {
+      serviceBaseUrl: 'http://localhost:3000',
+      sgwtConnect: {
+        isAuthorized: jasmine.createSpy('isAuthorized').and.returnValue(true), // Mocking authorization
+      },
+    };
+
+    TestBed.configureTestingModule({
+      imports: [HttpClientTestingModule],
+      providers: [
+        { provide: AppEnvironment, useValue: mockAppEnv },
+        RestService
+      ]
+    });
+
+    service = TestBed.inject(RestService);
+    httpMock = TestBed.inject(HttpTestingController);
   });
 
-  // Simulate an HTTP error
-  const req = httpMock.expectOne('http://localhost:3000/testService/searchAggregate/');
-  req.error(new ErrorEvent('Network error'), { status: 500 });
-
-  httpMock.verify(); // Ensure no pending HTTP requests
-});
-it('should handle errors in the catch block for createExport', () => {
-  const formGroup = new FormGroup({});
-  const serviceName = 'testService';
-  const fileName = 'testFile.txt';
-
-  spyOn(console, 'error'); // Spy on console.error
-
-  service.createExport(formGroup, serviceName, fileName).subscribe({
-    next: () => fail('Expected an error, not a success'),
-    error: () => {
-      // Expect the error to be logged
-      expect(console.error).toHaveBeenCalledWith('Error:', jasmine.anything());
-    }
+  afterEach(() => {
+    httpMock.verify();  // Ensure there are no outstanding HTTP requests
   });
 
-  // Simulate an HTTP error
-  const req = httpMock.expectOne('http://localhost:3000/testService/create/');
-  req.error(new ErrorEvent('Network error'), { status: 500 });
+  // Test for uploadFile
+  it('should call POST on the correct URL for uploadFile', () => {
+    const formData = new FormData();
+    const serviceName = 'testService';
+    const suffix = '/upload/';
 
-  httpMock.verify(); // Ensure no pending HTTP requests
+    service.uploadFile(formData, serviceName, suffix).subscribe();
+
+    const req = httpMock.expectOne('http://localhost:3000/testService/upload/');
+    expect(req.request.method).toBe('POST');
+    req.flush({}); // Simulate a successful response
+  });
+
+  // Test for read (authorized)
+  it('should call POST with the correct ID and handle the response for read', () => {
+    mockAppEnv.sgwtConnect.isAuthorized.and.returnValue(true); // Mock authorized
+
+    const serviceName = 'testService';
+    const id = JSON.stringify({ id: 123 });
+    const mockBlob = new Blob(['Test data'], { type: 'application/json' });
+
+    service.read(serviceName, id).subscribe((response) => {
+      expect(response).toBeTruthy();
+      // Additional expectations for response content if needed
+    });
+
+    const req = httpMock.expectOne('http://localhost:3000/testService/read/');
+    expect(req.request.method).toBe('POST');
+    req.flush(mockBlob, { headers: {} });
+  });
+
+  // Test for unauthorized read
+  it('should log an error and return an observable error for unauthorized read', () => {
+    mockAppEnv.sgwtConnect.isAuthorized.and.returnValue(false); // Mock unauthorized
+
+    spyOn(console, 'error');
+
+    const serviceName = 'testService';
+    const id = JSON.stringify({ id: 123 });
+
+    service.read(serviceName, id).subscribe({
+      next: () => fail('Expected an error, not a success'),
+      error: (err) => {
+        expect(err.message).toBe('Unauthorized access');
+        expect(console.error).toHaveBeenCalledWith('SG_CONNECT_FAILED');
+      },
+    });
+
+    httpMock.expectNone(); // No HTTP call should be made
+  });
+
+  // Test for error handling in uploadFile
+  it('should handle errors in the catch block for uploadFile', () => {
+    const formData = new FormData();
+    const serviceName = 'testService';
+
+    spyOn(console, 'error'); // Spy on console.error
+
+    service.uploadFile(formData, serviceName).subscribe({
+      next: () => fail('Expected an error, not a success'),
+      error: () => {
+        expect(console.error).toHaveBeenCalledWith('Error:', jasmine.anything());
+      }
+    });
+
+    // Simulate an HTTP error
+    const req = httpMock.expectOne('http://localhost:3000/testService/upload/');
+    req.error(new ErrorEvent('Network error'), { status: 500 });
+
+    httpMock.verify();
+  });
 });
