@@ -1,26 +1,28 @@
-it('should handle unauthorized access correctly', () => {
-  TestBed.overrideProvider(AppEnvironment, {
-    useValue: {
-      ...mockAppEnv,
-      sgwtConnect: {
-        isAuthorized: () => false, // Override to return false
-        getAuthorizationHeader: () => 'Bearer test-token',
-      },
-    },
+it('should make a POST request if authorized', () => {
+  mockAppEnv.sgwtConnect.isAuthorized.and.returnValue(true); // Mock authorization
+
+  const formGroup = new FormGroup({});
+  const serviceName = 'testService';
+  const mockResponse = { data: [] };
+
+  service.searchAggregate(formGroup, serviceName).subscribe((response) => {
+    expect(response).toEqual(mockResponse);
   });
 
-  const service = TestBed.inject(RestService);
-  const formGroup: FormGroup = new FormGroup({});
-  const serviceName = 'user';
+  const req = httpMock.expectOne('http://localhost:3000/testService/searchAggregate/');
+  expect(req.request.method).toBe('POST');
+  req.flush(mockResponse);
+});
+
+it('should log an error if not authorized', () => {
+  mockAppEnv.sgwtConnect.isAuthorized.and.returnValue(false); // Mock unauthorized
 
   spyOn(console, 'error');
 
-  service.create(formGroup, serviceName).subscribe({
-    next: () => fail('Expected an error, not a success'),
-    error: () => {
-      expect(console.error).toHaveBeenCalledWith('SG_CONNECT_FAILED');
-    }
-  });
+  const formGroup = new FormGroup({});
+  const serviceName = 'testService';
 
-  httpMock.verify(); // Verify no HTTP request was made
+  const result = service.searchAggregate(formGroup, serviceName);
+  expect(result).toBeNull();
+  expect(console.error).toHaveBeenCalledWith('SG_CONNECT_FAILED');
 });
