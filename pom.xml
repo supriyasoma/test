@@ -26,3 +26,38 @@ it('should log an error if not authorized', () => {
   expect(result).toBeNull();
   expect(console.error).toHaveBeenCalledWith('SG_CONNECT_FAILED');
 });
+
+
+it('should download a file if authorized', () => {
+  mockAppEnv.sgwtConnect.isAuthorized.and.returnValue(true); // Mock authorization
+
+  const formGroup = new FormGroup({});
+  const serviceName = 'testService';
+  const fileName = 'testFile.txt';
+  const mockBlob = new Blob(['Hello, world!'], { type: 'text/plain' });
+
+  spyOn(FileSaver, 'saveAs'); // Spy on FileSaver.saveAs
+
+  service.createExport(formGroup, serviceName, fileName).subscribe(() => {
+    expect(FileSaver.saveAs).toHaveBeenCalledWith(mockBlob, fileName);
+  });
+
+  const req = httpMock.expectOne('http://localhost:3000/testService/create/');
+  expect(req.request.method).toBe('POST');
+  req.flush(mockBlob, { headers: { filename: fileName } });
+});
+
+it('should log an error if not authorized', () => {
+  mockAppEnv.sgwtConnect.isAuthorized.and.returnValue(false); // Mock unauthorized
+
+  spyOn(console, 'error');
+
+  const formGroup = new FormGroup({});
+  const serviceName = 'testService';
+  const fileName = 'testFile.txt';
+
+  const result = service.createExport(formGroup, serviceName, fileName);
+  expect(result).toBeNull();
+  expect(console.error).toHaveBeenCalledWith('SG_CONNECT_FAILED');
+});
+
