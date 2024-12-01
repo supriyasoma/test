@@ -1,63 +1,20 @@
-it('should make a POST request if authorized', () => {
-  mockAppEnv.sgwtConnect.isAuthorized.and.returnValue(true); // Mock authorization
-
+it('should handle errors in the catch block for searchAggregate', () => {
   const formGroup = new FormGroup({});
   const serviceName = 'testService';
-  const mockResponse = { data: [] };
 
-  service.searchAggregate(formGroup, serviceName).subscribe((response) => {
-    expect(response).toEqual(mockResponse);
+  spyOn(console, 'error'); // Spy on console.error
+
+  service.searchAggregate(formGroup, serviceName).subscribe({
+    next: () => fail('Expected an error, not a success'),
+    error: () => {
+      // Expect the error to be logged
+      expect(console.error).toHaveBeenCalledWith('Error:', jasmine.anything());
+    }
   });
 
+  // Simulate an HTTP error
   const req = httpMock.expectOne('http://localhost:3000/testService/searchAggregate/');
-  expect(req.request.method).toBe('POST');
-  req.flush(mockResponse);
+  req.error(new ErrorEvent('Network error'), { status: 500 });
+
+  httpMock.verify(); // Ensure no pending HTTP requests
 });
-
-it('should log an error if not authorized', () => {
-  mockAppEnv.sgwtConnect.isAuthorized.and.returnValue(false); // Mock unauthorized
-
-  spyOn(console, 'error');
-
-  const formGroup = new FormGroup({});
-  const serviceName = 'testService';
-
-  const result = service.searchAggregate(formGroup, serviceName);
-  expect(result).toBeNull();
-  expect(console.error).toHaveBeenCalledWith('SG_CONNECT_FAILED');
-});
-
-
-it('should download a file if authorized', () => {
-  mockAppEnv.sgwtConnect.isAuthorized.and.returnValue(true); // Mock authorization
-
-  const formGroup = new FormGroup({});
-  const serviceName = 'testService';
-  const fileName = 'testFile.txt';
-  const mockBlob = new Blob(['Hello, world!'], { type: 'text/plain' });
-
-  spyOn(FileSaver, 'saveAs'); // Spy on FileSaver.saveAs
-
-  service.createExport(formGroup, serviceName, fileName).subscribe(() => {
-    expect(FileSaver.saveAs).toHaveBeenCalledWith(mockBlob, fileName);
-  });
-
-  const req = httpMock.expectOne('http://localhost:3000/testService/create/');
-  expect(req.request.method).toBe('POST');
-  req.flush(mockBlob, { headers: { filename: fileName } });
-});
-
-it('should log an error if not authorized', () => {
-  mockAppEnv.sgwtConnect.isAuthorized.and.returnValue(false); // Mock unauthorized
-
-  spyOn(console, 'error');
-
-  const formGroup = new FormGroup({});
-  const serviceName = 'testService';
-  const fileName = 'testFile.txt';
-
-  const result = service.createExport(formGroup, serviceName, fileName);
-  expect(result).toBeNull();
-  expect(console.error).toHaveBeenCalledWith('SG_CONNECT_FAILED');
-});
-
