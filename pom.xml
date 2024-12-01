@@ -18,3 +18,24 @@ it('should handle errors in the catch block for searchAggregate', () => {
 
   httpMock.verify(); // Ensure no pending HTTP requests
 });
+it('should handle errors in the catch block for createExport', () => {
+  const formGroup = new FormGroup({});
+  const serviceName = 'testService';
+  const fileName = 'testFile.txt';
+
+  spyOn(console, 'error'); // Spy on console.error
+
+  service.createExport(formGroup, serviceName, fileName).subscribe({
+    next: () => fail('Expected an error, not a success'),
+    error: () => {
+      // Expect the error to be logged
+      expect(console.error).toHaveBeenCalledWith('Error:', jasmine.anything());
+    }
+  });
+
+  // Simulate an HTTP error
+  const req = httpMock.expectOne('http://localhost:3000/testService/create/');
+  req.error(new ErrorEvent('Network error'), { status: 500 });
+
+  httpMock.verify(); // Ensure no pending HTTP requests
+});
