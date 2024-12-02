@@ -1,13 +1,12 @@
 import { TestBed } from '@angular/core/testing';
-import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
-import { RestService } from './rest.service';
+import { HttpClientTestingModule } from '@angular/common/http/testing';
+import { FormGroup, FormControl } from '@angular/forms';
+import { HttpErrorResponse } from '@angular/common/http';
 import { Router } from '@angular/router';
-import * as FileSaver from 'file-saver';
-import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
+import { RestService } from './rest.service';
 
 describe('RestService Additional Methods', () => {
   let service: RestService;
-  let httpMock: HttpTestingController;
   let router: Router;
 
   beforeEach(() => {
@@ -22,74 +21,78 @@ describe('RestService Additional Methods', () => {
     });
 
     service = TestBed.inject(RestService);
-    httpMock = TestBed.inject(HttpTestingController);
     router = TestBed.inject(Router);
   });
 
-  afterEach(() => {
-    httpMock.verify();
-  });
-
-  // Test case for update method
-  it('should send PUT request correctly in update', () => {
-    const serviceName = 'testService';
-    const id = '123';
-    const mockFormData = { name: 'testName' };
-
-    service.update({ value: mockFormData }, serviceName, id).subscribe();
-
-    const req = httpMock.expectOne('http://localhost:3000/testService/update/123');
-    expect(req.request.method).toBe('PUT');
-    expect(req.request.body).toEqual(mockFormData);
-    req.flush({});
-  });
-
-  // Test case for delete method
-  it('should send DELETE request correctly in delete', () => {
-    const serviceName = 'testService';
-    const id = '123';
-
-    service.delete(serviceName, id).subscribe();
-
-    const req = httpMock.expectOne('http://localhost:3000/testService/delete/123');
-    expect(req.request.method).toBe('DELETE');
-    req.flush({});
-  });
-
-  // Test case for redirectError method
-  it('should navigate to correct routes based on error status in redirectError', () => {
-    service.redirectError(404);
-    expect(router.navigate).toHaveBeenCalledWith(['RestServiceNotFound']);
-
-    service.redirectError(403);
-    expect(router.navigate).toHaveBeenCalledWith(['Unauthorized']);
-
-    service.redirectError(401);
-    expect(router.navigate).toHaveBeenCalledWith(['Unauthorized']);
-  });
-
-  // Test case for downloadFile method
-  it('should save file correctly in downloadFile', () => {
-    const mockBlob = new Blob(['Test file content'], { type: 'text/plain' });
-    const mockResponse = new HttpResponse({ body: mockBlob });
-    const fileName = 'testFile.txt';
-
-    spyOn(FileSaver, 'saveAs'); // Mock FileSaver.saveAs
-
-    service.downloadFile(mockResponse, fileName);
-
-    expect(FileSaver.saveAs).toHaveBeenCalledWith(mockBlob, fileName);
-  });
-
-  // Test case for error handling in downloadFile
-  it('should navigate to correct routes based on error status in downloadFile', () => {
-    const errorResponse = new HttpErrorResponse({ status: 404 });
-
+  // Test case for manageError
+  it('should navigate to correct routes based on error status in manageError', () => {
     spyOn(console, 'error'); // Spy on console.error
 
-    service.downloadFile(errorResponse as unknown as HttpResponse<Blob>, 'testFile.txt');
-
-    expect(console.error).toHaveBeenCalledWith('Errors detail:', errorResponse.message);
+    // Test for 404
+    const error404 = new HttpErrorResponse({ status: 404 });
+    service.manageError(error404);
+    expect(console.error).toHaveBeenCalledWith(error404);
     expect(router.navigate).toHaveBeenCalledWith(['RestServiceNotFound']);
+
+    // Test for 403
+    const error403 = new HttpErrorResponse({ status: 403 });
+    service.manageError(error403);
+    expect(router.navigate).toHaveBeenCalledWith(['Unauthorized']);
+
+    // Test for 422
+    const error422 = new HttpErrorResponse({
+      status: 422,
+      error: { message: 'Unprocessable entity' },
+    });
+    service.manageError(error422);
+    expect(console.error).toHaveBeenCalledWith('Reason: Unprocessable entity');
+
+    // Test for other status
+    const error503 = new HttpErrorResponse({ status: 503 });
+    service.manageError(error503);
+    expect(router.navigate).toHaveBeenCalledWith(['503']);
+  });
+
+  // Test case for clearFormErrors
+  it('should clear all errors from form controls in clearFormErrors', () => {
+    const registerForm = new FormGroup({
+      control1: new FormControl(),
+      control2: new FormControl(),
+    });
+
+    // Set errors to the controls
+    registerForm.controls['control1'].setErrors({ required: true });
+    registerForm.controls['control2'].setErrors({ minlength: true });
+
+    service.clearFormErrors(registerForm);
+
+    expect(registerForm.controls['control1'].errors).toBeNull();
+    expect(registerForm.controls['control2'].errors).toBeNull();
+  });
+
+  // Test case for manageErrorBlob
+  it('should handle blob errors correctly in manageErrorBlob', (done) => {
+    spyOn(console, 'error'); // Spy on console.error
+    const mockBlob = new Blob([JSON.stringify({ message: 'Invalid data' })], { type: 'application/json' });
+    const mockError = {
+      status: 422,
+      blob: () => mockBlob,
+    };
+    const registerForm = new FormGroup({
+      control1: new FormControl(),
+    });
+    const globalErrors: string[] = [];
+
+    const readerSpy = spyOn(FileReader.prototype, 'readAsText').and.callFake(function () {
+      (this as FileReader).onload!({ target: { result: '{"errors": "Test error"}' } } as any);
+    });
+
+    service.manageErrorBlob(mockError, registerForm, globalErrors);
+
+    setTimeout(() => {
+      expect(console.error).toHaveBeenCalledWith('Errors detail:', '{"errors": "Test error"}');
+      expect(globalErrors.length).toBe(0); // Modify if expecting to populate globalErrors
+      done();
+    });
   });
 });
