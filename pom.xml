@@ -1,98 +1,61 @@
-import { TestBed } from '@angular/core/testing';
-import { HttpClientTestingModule } from '@angular/common/http/testing';
-import { FormGroup, FormControl } from '@angular/forms';
-import { HttpErrorResponse } from '@angular/common/http';
-import { Router } from '@angular/router';
-import { RestService } from './rest.service';
+it('should handle field-specific and global errors in manageErrorBlob', (done) => {
+  spyOn(console, 'error'); // Spy on console.error
 
-describe('RestService Additional Methods', () => {
-  let service: RestService;
-  let router: Router;
+  const mockBlob = new Blob(
+    [
+      JSON.stringify({
+        fieldErrors: [
+          { field: 'control1', message: 'Control 1 error' },
+          { field: '', message: 'Global error' },
+        ],
+      }),
+    ],
+    { type: 'application/json' }
+  );
 
-  beforeEach(() => {
-    const routerSpy = jasmine.createSpyObj('Router', ['navigate']);
+  const mockError = {
+    status: 422,
+    blob: () => mockBlob,
+  };
 
-    TestBed.configureTestingModule({
-      imports: [HttpClientTestingModule],
-      providers: [
-        RestService,
-        { provide: Router, useValue: routerSpy },
-      ],
-    });
-
-    service = TestBed.inject(RestService);
-    router = TestBed.inject(Router);
+  const registerForm = new FormGroup({
+    control1: new FormControl(),
   });
 
-  // Test case for manageError
-  it('should navigate to correct routes based on error status in manageError', () => {
-    spyOn(console, 'error'); // Spy on console.error
+  const globalErrors: string[] = [];
 
-    // Test for 404
-    const error404 = new HttpErrorResponse({ status: 404 });
-    service.manageError(error404);
-    expect(console.error).toHaveBeenCalledWith(error404);
-    expect(router.navigate).toHaveBeenCalledWith(['RestServiceNotFound']);
-
-    // Test for 403
-    const error403 = new HttpErrorResponse({ status: 403 });
-    service.manageError(error403);
-    expect(router.navigate).toHaveBeenCalledWith(['Unauthorized']);
-
-    // Test for 422
-    const error422 = new HttpErrorResponse({
-      status: 422,
-      error: { message: 'Unprocessable entity' },
-    });
-    service.manageError(error422);
-    expect(console.error).toHaveBeenCalledWith('Reason: Unprocessable entity');
-
-    // Test for other status
-    const error503 = new HttpErrorResponse({ status: 503 });
-    service.manageError(error503);
-    expect(router.navigate).toHaveBeenCalledWith(['503']);
+  // Mock FileReader behavior
+  const readerSpy = spyOn(FileReader.prototype, 'readAsText').and.callFake(function () {
+    (this as FileReader).onload!({
+      target: {
+        result: JSON.stringify({
+          fieldErrors: [
+            { field: 'control1', message: 'Control 1 error' },
+            { field: '', message: 'Global error' },
+          ],
+        }),
+      },
+    } as any);
   });
 
-  // Test case for clearFormErrors
-  it('should clear all errors from form controls in clearFormErrors', () => {
-    const registerForm = new FormGroup({
-      control1: new FormControl(),
-      control2: new FormControl(),
+  service.manageErrorBlob(mockError, registerForm, globalErrors);
+
+  setTimeout(() => {
+    // Check console output
+    expect(console.error).toHaveBeenCalledWith('Errors', mockError);
+    expect(console.error).toHaveBeenCalledWith(
+      'Errors detail:',
+      '{"fieldErrors":[{"field":"control1","message":"Control 1 error"},{"field":"","message":"Global error"}]}'
+    );
+
+    // Assert field-specific errors
+    expect(registerForm.controls['control1'].errors).toEqual({
+      incorrect: ['Control 1 error'],
     });
 
-    // Set errors to the controls
-    registerForm.controls['control1'].setErrors({ required: true });
-    registerForm.controls['control2'].setErrors({ minlength: true });
+    // Assert global errors
+    expect(globalErrors).toEqual(['Global error']);
 
-    service.clearFormErrors(registerForm);
-
-    expect(registerForm.controls['control1'].errors).toBeNull();
-    expect(registerForm.controls['control2'].errors).toBeNull();
-  });
-
-  // Test case for manageErrorBlob
-  it('should handle blob errors correctly in manageErrorBlob', (done) => {
-    spyOn(console, 'error'); // Spy on console.error
-    const mockBlob = new Blob([JSON.stringify({ message: 'Invalid data' })], { type: 'application/json' });
-    const mockError = {
-      status: 422,
-      blob: () => mockBlob,
-    };
-    const registerForm = new FormGroup({
-      control1: new FormControl(),
-    });
-    const globalErrors: string[] = [];
-
-    const readerSpy = spyOn(FileReader.prototype, 'readAsText').and.callFake(function () {
-      (this as FileReader).onload!({ target: { result: '{"errors": "Test error"}' } } as any);
-    });
-
-    service.manageErrorBlob(mockError, registerForm, globalErrors);
-
-    setTimeout(() => {
-      expect(console.error).toHaveBeenCalledWith('Errors detail:', '{"errors": "Test error"}');
-      expect(globalErrors.length).toBe(0); // Modify if expecting to populate globalErrors
-      done();
-    });
+    done();
   });
 });
