@@ -1,123 +1,95 @@
 import { TestBed } from '@angular/core/testing';
 import { HttpClientTestingModule, HttpTestingController } from '@angular/common/http/testing';
 import { RestService } from './rest.service';
-import { AppEnvironment } from './app-environment';
+import { Router } from '@angular/router';
 import * as FileSaver from 'file-saver';
+import { HttpErrorResponse, HttpResponse } from '@angular/common/http';
 
-describe('RestService', () => {
+describe('RestService Additional Methods', () => {
   let service: RestService;
   let httpMock: HttpTestingController;
-  let mockAppEnv: AppEnvironment;
+  let router: Router;
 
   beforeEach(() => {
-    mockAppEnv = {
-      serviceBaseUrl: 'http://localhost:3000',
-      sgwtConnect: {
-        isAuthorized: jasmine.createSpy('isAuthorized').and.returnValue(true),
-        getAuthorizationHeader: jasmine.createSpy('getAuthorizationHeader').and.returnValue('Bearer token')
-      }
-    };
+    const routerSpy = jasmine.createSpyObj('Router', ['navigate']);
 
     TestBed.configureTestingModule({
       imports: [HttpClientTestingModule],
       providers: [
-        { provide: AppEnvironment, useValue: mockAppEnv },
-        RestService
-      ]
+        RestService,
+        { provide: Router, useValue: routerSpy },
+      ],
     });
 
     service = TestBed.inject(RestService);
     httpMock = TestBed.inject(HttpTestingController);
+    router = TestBed.inject(Router);
   });
 
   afterEach(() => {
     httpMock.verify();
   });
 
-  // Test case for readExport method
-  it('should download file correctly when authorized in readExport', () => {
+  // Test case for update method
+  it('should send PUT request correctly in update', () => {
     const serviceName = 'testService';
-    const id = JSON.stringify({ id: 123, fileName: 'testfile.pdf' });
-    const mockBlob = new Blob(['Test file content'], { type: 'application/pdf' });
+    const id = '123';
+    const mockFormData = { name: 'testName' };
+
+    service.update({ value: mockFormData }, serviceName, id).subscribe();
+
+    const req = httpMock.expectOne('http://localhost:3000/testService/update/123');
+    expect(req.request.method).toBe('PUT');
+    expect(req.request.body).toEqual(mockFormData);
+    req.flush({});
+  });
+
+  // Test case for delete method
+  it('should send DELETE request correctly in delete', () => {
+    const serviceName = 'testService';
+    const id = '123';
+
+    service.delete(serviceName, id).subscribe();
+
+    const req = httpMock.expectOne('http://localhost:3000/testService/delete/123');
+    expect(req.request.method).toBe('DELETE');
+    req.flush({});
+  });
+
+  // Test case for redirectError method
+  it('should navigate to correct routes based on error status in redirectError', () => {
+    service.redirectError(404);
+    expect(router.navigate).toHaveBeenCalledWith(['RestServiceNotFound']);
+
+    service.redirectError(403);
+    expect(router.navigate).toHaveBeenCalledWith(['Unauthorized']);
+
+    service.redirectError(401);
+    expect(router.navigate).toHaveBeenCalledWith(['Unauthorized']);
+  });
+
+  // Test case for downloadFile method
+  it('should save file correctly in downloadFile', () => {
+    const mockBlob = new Blob(['Test file content'], { type: 'text/plain' });
+    const mockResponse = new HttpResponse({ body: mockBlob });
+    const fileName = 'testFile.txt';
 
     spyOn(FileSaver, 'saveAs'); // Mock FileSaver.saveAs
 
-    service.readExport(serviceName, id).subscribe();
+    service.downloadFile(mockResponse, fileName);
 
-    const req = httpMock.expectOne('http://localhost:3000/testService/read/');
-    expect(req.request.method).toBe('POST');
-    req.flush(mockBlob, { headers: { 'Content-Type': 'application/pdf' } });
-
-    // Check that FileSaver.saveAs was called with the correct parameters
-    expect(FileSaver.saveAs).toHaveBeenCalledWith(mockBlob, 'testfile.pdf');
+    expect(FileSaver.saveAs).toHaveBeenCalledWith(mockBlob, fileName);
   });
 
-  // Test case for unauthorized access in readExport
-  it('should log SG_CONNECT_FAILED error when unauthorized in readExport', () => {
-    mockAppEnv.sgwtConnect.isAuthorized.and.returnValue(false); // Mock unauthorized
+  // Test case for error handling in downloadFile
+  it('should navigate to correct routes based on error status in downloadFile', () => {
+    const errorResponse = new HttpErrorResponse({ status: 404 });
 
     spyOn(console, 'error'); // Spy on console.error
 
-    const serviceName = 'testService';
-    const id = JSON.stringify({ id: 123, fileName: 'testfile.pdf' });
+    service.downloadFile(errorResponse as unknown as HttpResponse<Blob>, 'testFile.txt');
 
-    service.readExport(serviceName, id).subscribe({
-      next: () => fail('Expected an error, not a success'),
-      error: (err) => {
-        expect(console.error).toHaveBeenCalledWith('SG_CONNECT_FAILED');
-      }
-    });
-
-    httpMock.expectNone(); // No HTTP request should be made
-  });
-
-  // Test case for readFromUrl method
-  it('should make GET request and handle the response in readFromUrl', () => {
-    const url = 'testService/data';
-    const mockResponse = { data: 'test data' };
-
-    service.readFromUrl(url).subscribe(response => {
-      expect(response).toEqual(mockResponse);
-    });
-
-    const req = httpMock.expectOne('http://localhost:3000/testService/data');
-    expect(req.request.method).toBe('GET');
-    req.flush(mockResponse);
-  });
-
-  // Test case for unauthorized access in readFromUrl
-  it('should log SG_CONNECT_FAILED error when unauthorized in readFromUrl', () => {
-    mockAppEnv.sgwtConnect.isAuthorized.and.returnValue(false); // Mock unauthorized
-
-    spyOn(console, 'error'); // Spy on console.error
-
-    const url = 'testService/data';
-
-    service.readFromUrl(url).subscribe({
-      next: () => fail('Expected an error, not a success'),
-      error: (err) => {
-        expect(console.error).toHaveBeenCalledWith('SG_CONNECT_FAILED');
-      }
-    });
-
-    httpMock.expectNone(); // No HTTP request should be made
-  });
-
-  // Test case for error handling in readFromUrl method
-  it('should handle errors correctly in readFromUrl', () => {
-    const url = 'testService/data';
-    const mockError = { status: 500, statusText: 'Server Error' };
-
-    spyOn(console, 'error'); // Spy on console.error
-
-    service.readFromUrl(url).subscribe({
-      next: () => fail('Expected an error, not a success'),
-      error: (err) => {
-        expect(console.error).toHaveBeenCalledWith('Error:', jasmine.anything());
-      }
-    });
-
-    const req = httpMock.expectOne('http://localhost:3000/testService/data');
-    req.error(new ErrorEvent('Network error'), mockError);
+    expect(console.error).toHaveBeenCalledWith('Errors detail:', errorResponse.message);
+    expect(router.navigate).toHaveBeenCalledWith(['RestServiceNotFound']);
   });
 });
