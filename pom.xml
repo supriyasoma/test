@@ -1,81 +1,97 @@
-@WebMvcTest(OperatorsActivitiesController.class) // Replace with the actual controller
-class OperatorsActivitiesStepDefTest {
+@SpringBootTest(classes = CristalE2EApplication.class, webEnvironment = DEFINED_PORT)
+@ExtendWith(SpringExtension.class)
+@CucumberContextConfiguration
+@TestPropertySource(locations = "classpath:application-test.yml")
+@EnableAutoConfiguration
+@AutoConfigureMockMvc(addFilters = true)
+@ActiveProfiles("test")
+public class OperatorsActivitiesStepDef implements En {
 
-    @Autowired
-    private MockMvc mockMvc;
+    private static final String LOCALHOST = "http://localhost:";
+    private static final String API_URI_GET_ACTION_TYPES = "/api/v1/operators-activities/action-types?fromDate=%s&toDate=%s&searchText=";
+    private static final String API_URI_GET_OPERATOR_CODES = "/api/v1/operators-activities/operator-codes?fromDate=%s&toDate=%s&searchText=";
+    private static final String API_URI_GET_ACTIVITIES = "/api/v1/operators-activities/activities/do-search";
+    private static final int EXPECTED_PORT = 9090;
 
-    @MockBean
-    private OperatorsActivitiesService operatorsActivitiesService; // Replace with the actual service class
+    private final TestRestTemplate restTemplate;
+    private ResponseEntity<ActionTypes> responseEntityActionTypes;
+    private ResponseEntity<OperatorCodes> responseEntityOperatorCodes;
+    private ResponseEntity<Activities> responseEntityActivities;
 
-    @Test
-    @WithSgConnectClient(scopes = "GDH_CRISTAL_SCOPE", clientId = "TestClient")
-    void shouldFetchActionTypesSuccessfully() throws Exception {
-        // Define endpoint and expected behavior
-        String fromDate = "2022-01-01";
-        String toDate = "2022-12-31";
+    private final ObjectMapper mapper;
 
-        List<String> expectedActionTypes = List.of("TYPE1", "TYPE2");
-        ActionTypes actionTypesResponse = new ActionTypes(expectedActionTypes);
+    public OperatorsActivitiesStepDef(DataSource dataSource, TestRestTemplate restTemplate) {
+        this.restTemplate = restTemplate;
+        this.mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.configure(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS, false);
 
-        // Mock the service call
-        Mockito.when(operatorsActivitiesService.getActionTypes(fromDate, toDate))
-               .thenReturn(actionTypesResponse);
-
-        // Perform the API call and assert
-        mockMvc.perform(get("/api/v1/operators-activities/action-types")
-                        .param("fromDate", fromDate)
-                        .param("toDate", toDate)
-                        .accept(MediaType.APPLICATION_JSON))
-               .andExpect(status().isOk())
-               .andExpect(jsonPath("$.actionTypes").isArray())
-               .andExpect(jsonPath("$.actionTypes").value(expectedActionTypes));
+        DataTableType((Map<String, String> row) -> Activity.builder()
+            .date(row.get("date"))
+            .timestamp(row.get("timestamp"))
+            .actionType(row.get("actionType"))
+            .operatorCode(row.get("operatorCode"))
+            .result(row.get("result"))
+            .updatedData(row.get("updatedData"))
+            .build());
     }
 
-    @Test
     @WithSgConnectClient(scopes = "GDH_CRISTAL_SCOPE", clientId = "TestClient")
-    void shouldFetchOperatorCodesSuccessfully() throws Exception {
-        String fromDate = "2022-01-01";
-        String toDate = "2022-12-31";
-
-        List<String> expectedOperatorCodes = List.of("CODE1", "CODE2");
-        OperatorCodes operatorCodesResponse = new OperatorCodes(expectedOperatorCodes);
-
-        // Mock the service call
-        Mockito.when(operatorsActivitiesService.getOperatorCodes(fromDate, toDate))
-               .thenReturn(operatorCodesResponse);
-
-        mockMvc.perform(get("/api/v1/operators-activities/operator-codes")
-                        .param("fromDate", fromDate)
-                        .param("toDate", toDate)
-                        .accept(MediaType.APPLICATION_JSON))
-               .andExpect(status().isOk())
-               .andExpect(jsonPath("$.operatorCodes").isArray())
-               .andExpect(jsonPath("$.operatorCodes").value(expectedOperatorCodes));
+    @Given("data in the lake$")
+    public void givenDataInTheLake() {
+        // Data saved in H2 DB
     }
 
-    @Test
     @WithSgConnectClient(scopes = "GDH_CRISTAL_SCOPE", clientId = "TestClient")
-    void shouldFetchActivitiesSuccessfully() throws Exception {
-        String fromDate = "2022-01-01";
-        String toDate = "2022-12-31";
+    @When("user selects filters from date {string} and to date {string}")
+    public void whenUserSelectsFilters(String fromDate, String toDate) throws JsonProcessingException {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
 
+        HttpEntity<String> httpEntity = new HttpEntity<>(headers);
+
+        // Fetch action types
+        responseEntityActionTypes = restTemplate.exchange(
+            String.format("%s%d%s", LOCALHOST, EXPECTED_PORT, String.format(API_URI_GET_ACTION_TYPES, fromDate, toDate)),
+            HttpMethod.GET,
+            httpEntity,
+            ActionTypes.class
+        );
+
+        // Fetch operator codes
+        responseEntityOperatorCodes = restTemplate.exchange(
+            String.format("%s%d%s", LOCALHOST, EXPECTED_PORT, String.format(API_URI_GET_OPERATOR_CODES, fromDate, toDate)),
+            HttpMethod.GET,
+            httpEntity,
+            OperatorCodes.class
+        );
+
+        // Fetch activities
         SearchQuery searchQuery = SearchQuery.builder()
-                                             .fromDate(LocalDate.parse(fromDate))
-                                             .toDate(LocalDate.parse(toDate))
-                                             .operatorCodes(List.of())
-                                             .actionTypes(List.of())
-                                             .build();
+            .fromDate(LocalDate.parse(fromDate))
+            .toDate(LocalDate.parse(toDate))
+            .operatorCodes(List.of())
+            .actionTypes(List.of())
+            .build();
 
-        Activities expectedActivities = new Activities(); // Populate with mock data as needed
+        HttpEntity<String> request = new HttpEntity<>(mapper.writeValueAsString(searchQuery), headers);
 
-        // Mock the service call
-        Mockito.when(operatorsActivitiesService.searchActivities(searchQuery))
-               .thenReturn(expectedActivities);
+        responseEntityActivities = restTemplate.postForEntity(
+            String.format("%s%d%s", LOCALHOST, EXPECTED_PORT, API_URI_GET_ACTIVITIES),
+            request,
+            Activities.class
+        );
+    }
 
-        mockMvc.perform(post("/api/v1/operators-activities/activities/do-search")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(new ObjectMapper().writeValueAsString(searchQuery)))
-               .andExpect(status().isOk())
-               .andExpect(jsonPath("$.activities").exists());
+    @Then("the following list of action types should be fetched")
+    public void thenActionTypesShouldBeFetched(DataTable expectedActionTypesDataTable) {
+        assertThat(responseEntityActionTypes.getStatusCode()).isEqualTo(HttpStatus.OK);
+
+        ActionTypes actualActionTypes = responseEntityActionTypes.getBody();
+        assertThat(actualActionTypes).isNotNull();
+
+        List<String> expectedActionTypes = expectedActionTypesDataTable.asList(String.class);
+        assertThat(actualActionTypes.getActionTypesValues()).isNotEmpty();
+        assertThat(actualActionTypes.getActionTypesValues()).containsAnyElementsOf(expectedActionTypes);
     }
 }
