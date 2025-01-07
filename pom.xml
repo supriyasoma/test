@@ -1,61 +1,81 @@
-it('should handle field-specific and global errors in manageErrorBlob', (done) => {
-  spyOn(console, 'error'); // Spy on console.error
+@WebMvcTest(OperatorsActivitiesController.class) // Replace with the actual controller
+class OperatorsActivitiesStepDefTest {
 
-  const mockBlob = new Blob(
-    [
-      JSON.stringify({
-        fieldErrors: [
-          { field: 'control1', message: 'Control 1 error' },
-          { field: '', message: 'Global error' },
-        ],
-      }),
-    ],
-    { type: 'application/json' }
-  );
+    @Autowired
+    private MockMvc mockMvc;
 
-  const mockError = {
-    status: 422,
-    blob: () => mockBlob,
-  };
+    @MockBean
+    private OperatorsActivitiesService operatorsActivitiesService; // Replace with the actual service class
 
-  const registerForm = new FormGroup({
-    control1: new FormControl(),
-  });
+    @Test
+    @WithSgConnectClient(scopes = "GDH_CRISTAL_SCOPE", clientId = "TestClient")
+    void shouldFetchActionTypesSuccessfully() throws Exception {
+        // Define endpoint and expected behavior
+        String fromDate = "2022-01-01";
+        String toDate = "2022-12-31";
 
-  const globalErrors: string[] = [];
+        List<String> expectedActionTypes = List.of("TYPE1", "TYPE2");
+        ActionTypes actionTypesResponse = new ActionTypes(expectedActionTypes);
 
-  // Mock FileReader behavior
-  const readerSpy = spyOn(FileReader.prototype, 'readAsText').and.callFake(function () {
-    (this as FileReader).onload!({
-      target: {
-        result: JSON.stringify({
-          fieldErrors: [
-            { field: 'control1', message: 'Control 1 error' },
-            { field: '', message: 'Global error' },
-          ],
-        }),
-      },
-    } as any);
-  });
+        // Mock the service call
+        Mockito.when(operatorsActivitiesService.getActionTypes(fromDate, toDate))
+               .thenReturn(actionTypesResponse);
 
-  service.manageErrorBlob(mockError, registerForm, globalErrors);
+        // Perform the API call and assert
+        mockMvc.perform(get("/api/v1/operators-activities/action-types")
+                        .param("fromDate", fromDate)
+                        .param("toDate", toDate)
+                        .accept(MediaType.APPLICATION_JSON))
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$.actionTypes").isArray())
+               .andExpect(jsonPath("$.actionTypes").value(expectedActionTypes));
+    }
 
-  setTimeout(() => {
-    // Check console output
-    expect(console.error).toHaveBeenCalledWith('Errors', mockError);
-    expect(console.error).toHaveBeenCalledWith(
-      'Errors detail:',
-      '{"fieldErrors":[{"field":"control1","message":"Control 1 error"},{"field":"","message":"Global error"}]}'
-    );
+    @Test
+    @WithSgConnectClient(scopes = "GDH_CRISTAL_SCOPE", clientId = "TestClient")
+    void shouldFetchOperatorCodesSuccessfully() throws Exception {
+        String fromDate = "2022-01-01";
+        String toDate = "2022-12-31";
 
-    // Assert field-specific errors
-    expect(registerForm.controls['control1'].errors).toEqual({
-      incorrect: ['Control 1 error'],
-    });
+        List<String> expectedOperatorCodes = List.of("CODE1", "CODE2");
+        OperatorCodes operatorCodesResponse = new OperatorCodes(expectedOperatorCodes);
 
-    // Assert global errors
-    expect(globalErrors).toEqual(['Global error']);
+        // Mock the service call
+        Mockito.when(operatorsActivitiesService.getOperatorCodes(fromDate, toDate))
+               .thenReturn(operatorCodesResponse);
 
-    done();
-  });
-});
+        mockMvc.perform(get("/api/v1/operators-activities/operator-codes")
+                        .param("fromDate", fromDate)
+                        .param("toDate", toDate)
+                        .accept(MediaType.APPLICATION_JSON))
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$.operatorCodes").isArray())
+               .andExpect(jsonPath("$.operatorCodes").value(expectedOperatorCodes));
+    }
+
+    @Test
+    @WithSgConnectClient(scopes = "GDH_CRISTAL_SCOPE", clientId = "TestClient")
+    void shouldFetchActivitiesSuccessfully() throws Exception {
+        String fromDate = "2022-01-01";
+        String toDate = "2022-12-31";
+
+        SearchQuery searchQuery = SearchQuery.builder()
+                                             .fromDate(LocalDate.parse(fromDate))
+                                             .toDate(LocalDate.parse(toDate))
+                                             .operatorCodes(List.of())
+                                             .actionTypes(List.of())
+                                             .build();
+
+        Activities expectedActivities = new Activities(); // Populate with mock data as needed
+
+        // Mock the service call
+        Mockito.when(operatorsActivitiesService.searchActivities(searchQuery))
+               .thenReturn(expectedActivities);
+
+        mockMvc.perform(post("/api/v1/operators-activities/activities/do-search")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(new ObjectMapper().writeValueAsString(searchQuery)))
+               .andExpect(status().isOk())
+               .andExpect(jsonPath("$.activities").exists());
+    }
+}
