@@ -1,32 +1,66 @@
-@ExtendWith(MockitoExtension.class)
-class TraceIHMRepositoryTest {
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestInstance;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.testcontainers.containers.TrinoContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
-    @Mock
-    private NamedParameterJdbcTemplate jdbcTemplate;
+import java.time.LocalDate;
+import java.util.List;
 
-    @InjectMocks
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
+@Testcontainers
+@SpringBootTest
+@TestInstance(TestInstance.Lifecycle.PER_CLASS)
+@ExtendWith(SpringExtension.class)
+class TraceIHMRepositoryIT {
+
+    @Container
+    static TrinoContainer trino = new TrinoContainer("trinodb/trino:latest");
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
     private TraceIHMRepository traceIHMRepository;
 
+    @BeforeAll
+    void setup() {
+        System.setProperty("spring.datasource.url", trino.getJdbcUrl());
+        System.setProperty("spring.datasource.username", "test");
+        System.setProperty("spring.datasource.password", "");
+
+        jdbcTemplate.execute("CREATE SCHEMA IF NOT EXISTS test");
+        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS test.trace_ihm_matview (" +
+                "DAHMA3 VARCHAR, IDUSER VARCHAR, PFUSER VARCHAR, NOPROG VARCHAR, " +
+                "TYMODI VARCHAR, ZOLIBR VARCHAR, TBIMPC VARCHAR, IDDONN VARCHAR, " +
+                "ANVALE VARCHAR, AUTRESLIGNES VARCHAR)");
+
+        jdbcTemplate.execute("INSERT INTO test.trace_ihm_matview VALUES " +
+                "('2023-01-01 12:00:00', 'user1', 'pf1', 'prog1', 'modi1', 'zoli1', 'tb1', 'id1', 'an1', 'autres1')," +
+                "('2023-01-02 14:30:00', 'user2', 'pf2', 'prog2', 'modi2', 'zoli2', 'tb2', 'id2', 'an2', 'autres2')");
+    }
+
     @Test
-    @DisplayName("Should return list of traces when asked for traces IHM")
     void testFetchTracesFromTrino() {
-        // Given: Mocked result set
-        List<Trace> mockResult = List.of(
-            new Trace("01 Jan 2023 12:00:00", "user1", "pf1", "prog1", "modi1", "zoli1", "tb1", "id1", "an1", "autres1"),
-            new Trace("02 Jan 2023 14:30:00", "user2", "pf2", "prog2", "modi2", "zoli2", "tb2", "id2", "an2", "autres2")
-        );
+        // Given
+        LocalDate startDate = LocalDate.parse("2023-01-01");
+        LocalDate endDate = LocalDate.parse("2023-01-05");
 
-        // Mock query behavior
-        Mockito.when(jdbcTemplate.query(Mockito.anyString(), Mockito.any(MapSqlParameterSource.class), Mockito.any()))
-               .thenReturn(mockResult);
+        // When
+        List<Trace> traces = traceIHMRepository.getTraces(startDate, endDate);
 
-        // When: Fetch traces from repository
-        List<Trace> result = traceIHMRepository.getTraces(LocalDate.parse("2023-01-01"), LocalDate.parse("2023-01-05"));
-
-        // Then: Assertions
-        assertEquals(2, result.size());
-        assertEquals("01 Jan 2023 12:00:00", result.get(0).getDahmaj());
-        assertEquals("user1", result.get(0).getIdUser());
-        assertEquals("prog1", result.get(0).getNoProg());
+        // Then
+        assertThat(traces).hasSize(2);
+        assertEquals("user1", traces.get(0).getIdUser());
+        assertEquals("prog1", traces.get(0).getNoProg());
+        assertEquals("user2", traces.get(1).getIdUser());
     }
 }
