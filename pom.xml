@@ -1,59 +1,22 @@
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.Locale;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.stereotype.Component;
+import javax.annotation.PostConstruct;
 
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.stereotype.Repository;
+@Component
+public class TrinoConnectionTest {
+    private final JdbcTemplate jdbcTemplate;
 
-@Slf4j
-@Repository
-public class TraceIHMRepository implements ObtainTracells {
-
-    public static final DateTimeFormatter DATE_TIME_FORMATTER =
-        DateTimeFormatter.ofPattern("yyyy-MM-dd-HH.mm.ss", Locale.ENGLISH);
-
-    private static final String GET_TRACES_QUERY =
-        "SELECT PARSEDATETIME(SUBSTRING(DAHMA3, 1, 19), 'yyyy-MM-dd HH:mm:ss', 'en') AS DAHMAJ, " +
-        "TRIM(IDUSER), TRIM(PFUSER), TRIM(NOPROG), TRIM(TYMODI), TRIM(ZOLIBR), " +
-        "TRIM(TBIMPC), TRIM(IDDONN), TRIM(ANVALE), TRIM(AUTRESLIGNES) " +
-        "FROM trace_ihm_matview " +
-        "WHERE PARSEDATETIME(SUBSTRING(DAHMA3, 1, 19), 'yyyy-MM-dd HH:mm:ss', 'en') " +
-        "BETWEEN :startDate AND :endDate ORDER BY DAHMAJ DESC";
-
-    private final NamedParameterJdbcTemplate jdbcTemplate;
-
-    public TraceIHMRepository(NamedParameterJdbcTemplate jdbcTemplate) {
+    public TrinoConnectionTest(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    @Override
-    public List<Trace> getTraces(LocalDate startDate, LocalDate endDate) {
-        MapSqlParameterSource params = new MapSqlParameterSource();
-        params.addValue("startDate", startDate.toString());  
-        params.addValue("endDate", endDate.toString());
-
-        return jdbcTemplate.query(GET_TRACES_QUERY, params, (rs, rowNum) -> {
-            // Convert DB Timestamp to LocalDateTime
-            String timestampString = rs.getString(1);  // Raw timestamp string
-            LocalDateTime parsedDateTime = LocalDateTime.parse(timestampString, DATE_TIME_FORMATTER);
-            String formattedDateTime = parsedDateTime.format(DateTimeFormatter.ofPattern("dd MMM yyyy HH:mm:ss"));
-
-            return new Trace(
-                formattedDateTime,
-                rs.getString(2),
-                rs.getString(3),
-                rs.getString(4),
-                rs.getString(5),
-                rs.getString(6),
-                rs.getString(7),
-                rs.getString(8),
-                rs.getString(9),
-                rs.getString(10)
-            );
-        });
+    @PostConstruct
+    public void testConnection() {
+        try {
+            String result = jdbcTemplate.queryForObject("SELECT 1", String.class);
+            System.out.println("Trino Connection Successful: " + result);
+        } catch (Exception e) {
+            System.err.println("Trino Connection Failed: " + e.getMessage());
+        }
     }
 }
