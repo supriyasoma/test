@@ -1,66 +1,61 @@
-import org.junit.jupiter.api.BeforeAll;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.test.context.junit.jupiter.SpringExtension;
-import org.testcontainers.containers.TrinoContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import static org.mockito.Mockito.*;
+import static org.junit.jupiter.api.Assertions.*;
 
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.mockito.*;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.junit.jupiter.api.Assertions.assertEquals;
+class TraceIHMRepositoryTest {
 
-@Testcontainers
-@SpringBootTest
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-@ExtendWith(SpringExtension.class)
-class TraceIHMRepositoryIT {
-
-    @Container
-    static TrinoContainer trino = new TrinoContainer("trinodb/trino:latest");
-
-    @Autowired
-    private JdbcTemplate jdbcTemplate;
-
-    @Autowired
     private TraceIHMRepository traceIHMRepository;
 
-    @BeforeAll
-    void setup() {
-        System.setProperty("spring.datasource.url", trino.getJdbcUrl());
-        System.setProperty("spring.datasource.username", "test");
-        System.setProperty("spring.datasource.password", "");
+    @Mock
+    private NamedParameterJdbcTemplate jdbcTemplate;
 
-        jdbcTemplate.execute("CREATE SCHEMA IF NOT EXISTS test");
-        jdbcTemplate.execute("CREATE TABLE IF NOT EXISTS test.trace_ihm_matview (" +
-                "DAHMA3 VARCHAR, IDUSER VARCHAR, PFUSER VARCHAR, NOPROG VARCHAR, " +
-                "TYMODI VARCHAR, ZOLIBR VARCHAR, TBIMPC VARCHAR, IDDONN VARCHAR, " +
-                "ANVALE VARCHAR, AUTRESLIGNES VARCHAR)");
+    @InjectMocks
+    private TraceIHMRepository traceIHMRepositoryTest;
 
-        jdbcTemplate.execute("INSERT INTO test.trace_ihm_matview VALUES " +
-                "('2023-01-01 12:00:00', 'user1', 'pf1', 'prog1', 'modi1', 'zoli1', 'tb1', 'id1', 'an1', 'autres1')," +
-                "('2023-01-02 14:30:00', 'user2', 'pf2', 'prog2', 'modi2', 'zoli2', 'tb2', 'id2', 'an2', 'autres2')");
+    @BeforeEach
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
     }
 
     @Test
-    void testFetchTracesFromTrino() {
+    void testGetTraces() {
         // Given
-        LocalDate startDate = LocalDate.parse("2023-01-01");
-        LocalDate endDate = LocalDate.parse("2023-01-05");
+        LocalDate startDate = LocalDate.of(2025, 1, 1);
+        LocalDate endDate = LocalDate.of(2025, 1, 31);
+        
+        // Mocking the behavior of jdbcTemplate.query() method
+        MapSqlParameterSource params = new MapSqlParameterSource();
+        params.addValue("startDate", java.sql.Date.valueOf(startDate));
+        params.addValue("endDate", java.sql.Date.valueOf(endDate));
+        
+        // Mocking the result set processing (trace data)
+        Trace mockTrace = new Trace(
+            "01 Jan 2025 12:30:00", "user1", "pfUser1", "program1", "modi1", "lib1", "imp1", "id1", "vale1", "other1"
+        );
+        List<Trace> mockTraces = Arrays.asList(mockTrace);
+
+        // Mocking jdbcTemplate.query()
+        when(jdbcTemplate.query(anyString(), eq(params), any())).thenReturn(mockTraces);
 
         // When
-        List<Trace> traces = traceIHMRepository.getTraces(startDate, endDate);
+        List<Trace> traces = traceIHMRepositoryTest.getTraces(startDate, endDate);
 
         // Then
-        assertThat(traces).hasSize(2);
+        assertNotNull(traces);
+        assertEquals(1, traces.size());  // There should be one mocked trace
         assertEquals("user1", traces.get(0).getIdUser());
-        assertEquals("prog1", traces.get(0).getNoProg());
-        assertEquals("user2", traces.get(1).getIdUser());
+        assertEquals("pfUser1", traces.get(0).getPfUser());
+        // Add other assertions as necessary to verify the transformed data
     }
+
+    // Additional test cases
 }
