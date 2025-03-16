@@ -1,25 +1,32 @@
 import static org.mockito.Mockito.*;
 import static org.junit.jupiter.api.Assertions.*;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.Query;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.*;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.util.Arrays;
-import java.util.List;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+import java.util.*;
 
-class TraceIHMRepositoryTest {
-
-    private TraceIHMRepository traceIHMRepository;
+class CheckComplianceDetailRepositoryImplTest {
 
     @Mock
-    private NamedParameterJdbcTemplate jdbcTemplate;
+    private EntityManager em;
+
+    @Mock
+    private DBUtils dbUtils;
+
+    @Mock
+    private Query query;
 
     @InjectMocks
-    private TraceIHMRepository traceIHMRepositoryTest;
+    private CheckComplianceDetailRepositoryImpl repository;
+
+    private static final String TEST_FLUX = "test_flux";
+    private static final Date START_DATE = new Date();
+    private static final Date END_DATE = new Date();
 
     @BeforeEach
     void setUp() {
@@ -27,35 +34,60 @@ class TraceIHMRepositoryTest {
     }
 
     @Test
-    void testGetTraces() {
-        // Given
-        LocalDate startDate = LocalDate.of(2025, 1, 1);
-        LocalDate endDate = LocalDate.of(2025, 1, 31);
-        
-        // Mocking the behavior of jdbcTemplate.query() method
-        MapSqlParameterSource params = new MapSqlParameterSource();
-        params.addValue("startDate", java.sql.Date.valueOf(startDate));
-        params.addValue("endDate", java.sql.Date.valueOf(endDate));
-        
-        // Mocking the result set processing (trace data)
-        Trace mockTrace = new Trace(
-            "01 Jan 2025 12:30:00", "user1", "pfUser1", "program1", "modi1", "lib1", "imp1", "id1", "vale1", "other1"
-        );
-        List<Trace> mockTraces = Arrays.asList(mockTrace);
+    void testFindCheckDetailsPaginated_WhenFluxIsEmpty_ShouldUseDateQuery() {
+        // Arrange
+        when(dbUtils.getSelectAllFromCheckComplianceDetailByDate()).thenReturn("SELECT * FROM table WHERE date BETWEEN :startDate AND :endDate");
+        when(em.createNativeQuery(anyString(), eq(CheckComplianceDetailEntity.class))).thenReturn(query);
+        when(query.setParameter(anyString(), any())).thenReturn(query);
+        when(query.getResultList()).thenReturn(Collections.emptyList());
 
-        // Mocking jdbcTemplate.query()
-        when(jdbcTemplate.query(anyString(), eq(params), any())).thenReturn(mockTraces);
+        // Act
+        List<CheckComplianceDetailEntity> result = repository.findCheckDetailsPaginated("", START_DATE, END_DATE);
 
-        // When
-        List<Trace> traces = traceIHMRepositoryTest.getTraces(startDate, endDate);
-
-        // Then
-        assertNotNull(traces);
-        assertEquals(1, traces.size());  // There should be one mocked trace
-        assertEquals("user1", traces.get(0).getIdUser());
-        assertEquals("pfUser1", traces.get(0).getPfUser());
-        // Add other assertions as necessary to verify the transformed data
+        // Assert
+        verify(dbUtils).getSelectAllFromCheckComplianceDetailByDate();
+        verify(query).setParameter("startDate", any());
+        verify(query).setParameter("endDate", any());
+        verify(query, never()).setParameter(eq("flux"), any());
+        assertTrue(result.isEmpty());
     }
 
-    // Additional test cases
+    @Test
+    void testFindCheckDetailsPaginated_WhenFluxIsProvided_ShouldUseFluxAndDateQuery() {
+        // Arrange
+        when(dbUtils.getSelectAllFromCheckComplianceDetailByFluxAndDate()).thenReturn("SELECT * FROM table WHERE flux = :flux AND date BETWEEN :startDate AND :endDate");
+        when(em.createNativeQuery(anyString(), eq(CheckComplianceDetailEntity.class))).thenReturn(query);
+        when(query.setParameter(anyString(), any())).thenReturn(query);
+        when(query.getResultList()).thenReturn(Collections.emptyList());
+
+        // Act
+        List<CheckComplianceDetailEntity> result = repository.findCheckDetailsPaginated(TEST_FLUX, START_DATE, END_DATE);
+
+        // Assert
+        verify(dbUtils).getSelectAllFromCheckComplianceDetailByFluxAndDate();
+        verify(query).setParameter("flux", TEST_FLUX);
+        verify(query).setParameter("startDate", any());
+        verify(query).setParameter("endDate", any());
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void testFindCheckDetailsPaginated_WhenQueryReturnsData_ShouldReturnList() {
+        // Arrange
+        CheckComplianceDetailEntity entity = new CheckComplianceDetailEntity(); // Assuming this is a valid entity
+        List<CheckComplianceDetailEntity> expectedList = List.of(entity);
+
+        when(dbUtils.getSelectAllFromCheckComplianceDetailByFluxAndDate()).thenReturn("SELECT * FROM table WHERE flux = :flux AND date BETWEEN :startDate AND :endDate");
+        when(em.createNativeQuery(anyString(), eq(CheckComplianceDetailEntity.class))).thenReturn(query);
+        when(query.setParameter(anyString(), any())).thenReturn(query);
+        when(query.getResultList()).thenReturn(expectedList);
+
+        // Act
+        List<CheckComplianceDetailEntity> result = repository.findCheckDetailsPaginated(TEST_FLUX, START_DATE, END_DATE);
+
+        // Assert
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertEquals(entity, result.get(0));
+    }
 }
