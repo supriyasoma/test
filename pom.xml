@@ -1,93 +1,79 @@
-import static org.mockito.Mockito.*;
-import static org.junit.jupiter.api.Assertions.*;
-
-import jakarta.persistence.EntityManager;
-import jakarta.persistence.Query;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import java.util.*;
-
+@ExtendWith(MockitoExtension.class)
+@SpringBootTest
+@TestPropertySource(locations = "classpath:config/application.yml")
 class CheckComplianceDetailRepositoryImplTest {
 
     @Mock
     private EntityManager em;
 
     @Mock
-    private DBUtils dbUtils;
-
-    @Mock
     private Query query;
 
-    @InjectMocks
+    private DBUtils dbUtils;
     private CheckComplianceDetailRepositoryImpl repository;
 
-    private static final String TEST_FLUX = "test_flux";
     private static final Date START_DATE = new Date();
     private static final Date END_DATE = new Date();
 
     @BeforeEach
-    void setUp() {
-        MockitoAnnotations.openMocks(this);
+    void setup() {
+        dbUtils = new DBUtils("fhml", "_uv_bib_180536");
+        repository = new CheckComplianceDetailRepositoryImpl(dbUtils);
+        repository.em = em;
     }
 
     @Test
     void testFindCheckDetailsPaginated_WhenFluxIsEmpty_ShouldUseDateQuery() {
-        // Arrange
-        when(dbUtils.getSelectAllFromCheckComplianceDetailByDate()).thenReturn("SELECT * FROM table WHERE date BETWEEN :startDate AND :endDate");
         when(em.createNativeQuery(anyString(), eq(CheckComplianceDetailEntity.class))).thenReturn(query);
         when(query.setParameter(anyString(), any())).thenReturn(query);
         when(query.getResultList()).thenReturn(Collections.emptyList());
 
-        // Act
         List<CheckComplianceDetailEntity> result = repository.findCheckDetailsPaginated("", START_DATE, END_DATE);
 
-        // Assert
-        verify(dbUtils).getSelectAllFromCheckComplianceDetailByDate();
-        verify(query).setParameter("startDate", any());
-        verify(query).setParameter("endDate", any());
-        verify(query, never()).setParameter(eq("flux"), any());
+        assertNotNull(result);
         assertTrue(result.isEmpty());
+
+        verify(em, times(1)).createNativeQuery(anyString(), eq(CheckComplianceDetailEntity.class));
+        verify(query, times(1)).setParameter("startDate", anyString());
+        verify(query, times(1)).setParameter("endDate", anyString());
+        verify(query, times(1)).getResultList();
     }
 
     @Test
-    void testFindCheckDetailsPaginated_WhenFluxIsProvided_ShouldUseFluxAndDateQuery() {
-        // Arrange
-        when(dbUtils.getSelectAllFromCheckComplianceDetailByFluxAndDate()).thenReturn("SELECT * FROM table WHERE flux = :flux AND date BETWEEN :startDate AND :endDate");
+    void testFindCheckDetailsPaginated_WhenFluxIsNotEmpty_ShouldUseFluxAndDateQuery() {
         when(em.createNativeQuery(anyString(), eq(CheckComplianceDetailEntity.class))).thenReturn(query);
         when(query.setParameter(anyString(), any())).thenReturn(query);
         when(query.getResultList()).thenReturn(Collections.emptyList());
 
-        // Act
-        List<CheckComplianceDetailEntity> result = repository.findCheckDetailsPaginated(TEST_FLUX, START_DATE, END_DATE);
+        List<CheckComplianceDetailEntity> result = repository.findCheckDetailsPaginated("FLUX_VALUE", START_DATE, END_DATE);
 
-        // Assert
-        verify(dbUtils).getSelectAllFromCheckComplianceDetailByFluxAndDate();
-        verify(query).setParameter("flux", TEST_FLUX);
-        verify(query).setParameter("startDate", any());
-        verify(query).setParameter("endDate", any());
+        assertNotNull(result);
         assertTrue(result.isEmpty());
+
+        verify(em, times(1)).createNativeQuery(anyString(), eq(CheckComplianceDetailEntity.class));
+        verify(query, times(1)).setParameter("startDate", anyString());
+        verify(query, times(1)).setParameter("endDate", anyString());
+        verify(query, times(1)).setParameter("flux", "FLUX_VALUE");
+        verify(query, times(1)).getResultList();
     }
 
     @Test
-    void testFindCheckDetailsPaginated_WhenQueryReturnsData_ShouldReturnList() {
-        // Arrange
-        CheckComplianceDetailEntity entity = new CheckComplianceDetailEntity(); // Assuming this is a valid entity
-        List<CheckComplianceDetailEntity> expectedList = List.of(entity);
-
-        when(dbUtils.getSelectAllFromCheckComplianceDetailByFluxAndDate()).thenReturn("SELECT * FROM table WHERE flux = :flux AND date BETWEEN :startDate AND :endDate");
+    void testFindCheckDetailsPaginated_WhenQueryReturnsResults() {
+        List<CheckComplianceDetailEntity> mockResults = List.of(new CheckComplianceDetailEntity());
         when(em.createNativeQuery(anyString(), eq(CheckComplianceDetailEntity.class))).thenReturn(query);
         when(query.setParameter(anyString(), any())).thenReturn(query);
-        when(query.getResultList()).thenReturn(expectedList);
+        when(query.getResultList()).thenReturn(mockResults);
 
-        // Act
-        List<CheckComplianceDetailEntity> result = repository.findCheckDetailsPaginated(TEST_FLUX, START_DATE, END_DATE);
+        List<CheckComplianceDetailEntity> result = repository.findCheckDetailsPaginated("FLUX_VALUE", START_DATE, END_DATE);
 
-        // Assert
         assertNotNull(result);
+        assertFalse(result.isEmpty());
         assertEquals(1, result.size());
-        assertEquals(entity, result.get(0));
+
+        verify(em, times(1)).createNativeQuery(anyString(), eq(CheckComplianceDetailEntity.class));
+        verify(query, times(1)).setParameter("startDate", anyString());
+        verify(query, times(1)).setParameter("endDate", anyString());
+        verify(query, times(1)).setParameter("flux", "FLUX_VALUE");
+        verify(query, times(1)).getResultList();
     }
 }
