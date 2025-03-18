@@ -1,79 +1,27 @@
-@ExtendWith(MockitoExtension.class)
-@SpringBootTest
-@TestPropertySource(locations = "classpath:config/application.yml")
-class CheckComplianceDetailRepositoryImplTest {
+public boolean isValid() {
+    try {
+        // Create a SchemaFactory with secure processing enabled
+        SchemaFactory factory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
+        factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
 
-    @Mock
-    private EntityManager em;
+        // Load the schema file as a resource from the classpath
+        InputStream schemaStream = this.getClass().getClassLoader().getResourceAsStream(xsdPath);
+        if (schemaStream == null) {
+            throw new IOException("Schema file not found: " + xsdPath);
+        }
 
-    @Mock
-    private Query query;
+        // Create a Schema using the schema file
+        Schema schema = factory.newSchema(new StreamSource(schemaStream));
 
-    private DBUtils dbUtils;
-    private CheckComplianceDetailRepositoryImpl repository;
+        // Create a Validator
+        Validator validator = schema.newValidator();
 
-    private static final Date START_DATE = new Date();
-    private static final Date END_DATE = new Date();
+        // Validate the XML content
+        validator.validate(new StreamSource(new StringReader(getContent())));
 
-    @BeforeEach
-    void setup() {
-        dbUtils = new DBUtils("fhml", "_uv_bib_180536");
-        repository = new CheckComplianceDetailRepositoryImpl(dbUtils);
-        repository.em = em;
-    }
-
-    @Test
-    void testFindCheckDetailsPaginated_WhenFluxIsEmpty_ShouldUseDateQuery() {
-        when(em.createNativeQuery(anyString(), eq(CheckComplianceDetailEntity.class))).thenReturn(query);
-        when(query.setParameter(anyString(), any())).thenReturn(query);
-        when(query.getResultList()).thenReturn(Collections.emptyList());
-
-        List<CheckComplianceDetailEntity> result = repository.findCheckDetailsPaginated("", START_DATE, END_DATE);
-
-        assertNotNull(result);
-        assertTrue(result.isEmpty());
-
-        verify(em, times(1)).createNativeQuery(anyString(), eq(CheckComplianceDetailEntity.class));
-        verify(query, times(1)).setParameter("startDate", anyString());
-        verify(query, times(1)).setParameter("endDate", anyString());
-        verify(query, times(1)).getResultList();
-    }
-
-    @Test
-    void testFindCheckDetailsPaginated_WhenFluxIsNotEmpty_ShouldUseFluxAndDateQuery() {
-        when(em.createNativeQuery(anyString(), eq(CheckComplianceDetailEntity.class))).thenReturn(query);
-        when(query.setParameter(anyString(), any())).thenReturn(query);
-        when(query.getResultList()).thenReturn(Collections.emptyList());
-
-        List<CheckComplianceDetailEntity> result = repository.findCheckDetailsPaginated("FLUX_VALUE", START_DATE, END_DATE);
-
-        assertNotNull(result);
-        assertTrue(result.isEmpty());
-
-        verify(em, times(1)).createNativeQuery(anyString(), eq(CheckComplianceDetailEntity.class));
-        verify(query, times(1)).setParameter("startDate", anyString());
-        verify(query, times(1)).setParameter("endDate", anyString());
-        verify(query, times(1)).setParameter("flux", "FLUX_VALUE");
-        verify(query, times(1)).getResultList();
-    }
-
-    @Test
-    void testFindCheckDetailsPaginated_WhenQueryReturnsResults() {
-        List<CheckComplianceDetailEntity> mockResults = List.of(new CheckComplianceDetailEntity());
-        when(em.createNativeQuery(anyString(), eq(CheckComplianceDetailEntity.class))).thenReturn(query);
-        when(query.setParameter(anyString(), any())).thenReturn(query);
-        when(query.getResultList()).thenReturn(mockResults);
-
-        List<CheckComplianceDetailEntity> result = repository.findCheckDetailsPaginated("FLUX_VALUE", START_DATE, END_DATE);
-
-        assertNotNull(result);
-        assertFalse(result.isEmpty());
-        assertEquals(1, result.size());
-
-        verify(em, times(1)).createNativeQuery(anyString(), eq(CheckComplianceDetailEntity.class));
-        verify(query, times(1)).setParameter("startDate", anyString());
-        verify(query, times(1)).setParameter("endDate", anyString());
-        verify(query, times(1)).setParameter("flux", "FLUX_VALUE");
-        verify(query, times(1)).getResultList();
+        return true;
+    } catch (IOException | SAXException | TransformerException e) {
+        log.error(e.getMessage(), e);
+        return false;
     }
 }
