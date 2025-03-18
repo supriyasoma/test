@@ -1,27 +1,130 @@
-public boolean isValid() {
-    try {
-        // Create a SchemaFactory with secure processing enabled
-        SchemaFactory factory = SchemaFactory.newInstance(XMLConstants.W3C_XML_SCHEMA_NS_URI);
-        factory.setFeature(XMLConstants.FEATURE_SECURE_PROCESSING, true);
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
-        // Load the schema file as a resource from the classpath
-        InputStream schemaStream = this.getClass().getClassLoader().getResourceAsStream(xsdPath);
-        if (schemaStream == null) {
-            throw new IOException("Schema file not found: " + xsdPath);
-        }
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
+import org.mockito.junit.jupiter.MockitoExtension;
 
-        // Create a Schema using the schema file
-        Schema schema = factory.newSchema(new StreamSource(schemaStream));
+import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
-        // Create a Validator
-        Validator validator = schema.newValidator();
+@ExtendWith(MockitoExtension.class)
+class CompassBusinessServiceImplTest {
 
-        // Validate the XML content
-        validator.validate(new StreamSource(new StringReader(getContent())));
+    @Mock
+    private CompassPeriodRepository periodRepository;
 
-        return true;
-    } catch (IOException | SAXException | TransformerException e) {
-        log.error(e.getMessage(), e);
-        return false;
+    @InjectMocks
+    private CompassBusinessServiceImpl compassBusinessService;
+
+    @BeforeEach
+    void setUp() {
+        MockitoAnnotations.openMocks(this);
+    }
+
+    @Test
+    void testGetAllPeriods_ReturnsList() {
+        // Mock data
+        List<CompassPeriodEntity> mockEntities = List.of(
+                new CompassPeriodEntity(2022, new Date(), new Date()),
+                new CompassPeriodEntity(2023, new Date(), new Date())
+        );
+
+        when(periodRepository.findAll()).thenReturn(mockEntities);
+
+        // Execute
+        List<CompassPeriodModel> result = compassBusinessService.getAllPeriods();
+
+        // Verify
+        assertNotNull(result);
+        assertEquals(2, result.size());
+        assertEquals(2022, result.get(0).getValueYear());
+        assertEquals(2023, result.get(1).getValueYear());
+    }
+
+    @Test
+    void testGetAllPeriods_ReturnsEmptyList_WhenNoData() {
+        when(periodRepository.findAll()).thenReturn(Collections.emptyList());
+
+        List<CompassPeriodModel> result = compassBusinessService.getAllPeriods();
+
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+    }
+
+    @Test
+    void testGetAllPeriods_ThrowsRepositoryOperationException() {
+        when(periodRepository.findAll()).thenThrow(new RuntimeException("Database error"));
+
+        Exception exception = assertThrows(RepositoryOperationException.class, () -> {
+            compassBusinessService.getAllPeriods();
+        });
+
+        assertEquals("Database error", exception.getMessage());
+    }
+
+    @Test
+    void testConvertCompassPeriodEntitiesToCompassPeriodModels_CorrectConversion() {
+        List<CompassPeriodEntity> mockEntities = List.of(
+                new CompassPeriodEntity(2022, new Date(1672531200000L), new Date(1675123200000L)) // Example dates
+        );
+
+        List<CompassPeriodModel> result = compassBusinessService.convertCompassPeriodEntitiesToCompassPeriodModels(mockEntities);
+
+        assertNotNull(result);
+        assertEquals(1, result.size());
+        assertEquals(2022, result.get(0).getValueYear());
+        assertTrue(result.get(0).getDescription().contains("Plage de temps couverte"));
+    }
+
+    @Test
+    void testMapToChangeIndicatorValue_CorrectMapping() {
+        Map<String, String> mappingIndicators = new HashMap<>();
+        mappingIndicators.put("IND-001", "Mapped-001");
+        mappingIndicators.put("IND-002", "Mapped-002");
+
+        CompassIndicatorResultsDto dto = new CompassIndicatorResultsDto();
+        dto.setIndicator("IND-001");
+        dto.setSubcategory("Category1");
+        dto.setVolume(10);
+        dto.setAmount(100.0);
+
+        Function<CompassIndicatorResultsDto, CompassIndicatorResultsDto> mapper =
+                compassBusinessService.mapToChangeIndicatorValue(mappingIndicators);
+
+        CompassIndicatorResultsDto mappedDto = mapper.apply(dto);
+
+        assertNotNull(mappedDto);
+        assertEquals("Mapped-001", mappedDto.getIndicator());
+        assertEquals("Category1", mappedDto.getSubcategory());
+        assertEquals(10, mappedDto.getVolume());
+        assertEquals(100.0, mappedDto.getAmount());
+    }
+
+    @Test
+    void testMapToChangeIndicatorValue_NoMappingAvailable() {
+        Map<String, String> mappingIndicators = new HashMap<>();
+
+        CompassIndicatorResultsDto dto = new CompassIndicatorResultsDto();
+        dto.setIndicator("IND-003");  // Not in mapping
+        dto.setSubcategory("Category2");
+        dto.setVolume(20);
+        dto.setAmount(200.0);
+
+        Function<CompassIndicatorResultsDto, CompassIndicatorResultsDto> mapper =
+                compassBusinessService.mapToChangeIndicatorValue(mappingIndicators);
+
+        CompassIndicatorResultsDto mappedDto = mapper.apply(dto);
+
+        assertNotNull(mappedDto);
+        assertEquals("IND-003", mappedDto.getIndicator());  // Should remain unchanged
+        assertEquals("Category2", mappedDto.getSubcategory());
+        assertEquals(20, mappedDto.getVolume());
+        assertEquals(200.0, mappedDto.getAmount());
     }
 }
