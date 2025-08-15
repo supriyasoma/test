@@ -1,0 +1,499 @@
+Thought for a few seconds
+
+Awesome — here’s a complete Spring Boot backend using WebClient, hourly scheduler, global exception handling, and a single common DtoMapper under dto/ for all mappings.
+
+I’ve listed files by path so you can drop them into a fresh project.
+
+📦 pom.xml
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>com.example</groupId>
+  <artifactId>monitoring</artifactId>
+  <version>0.0.1-SNAPSHOT</version>
+  <name>monitoring</name>
+  <description>Monitoring Dashboard Backend</description>
+
+  <properties>
+    <java.version>17</java.version>
+    <spring-boot.version>3.3.2</spring-boot.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-dependencies</artifactId>
+        <version>${spring-boot.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <!-- Spring Boot starters -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-webflux</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-data-jpa</artifactId>
+    </dependency>
+
+    <!-- DB -->
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <scope>runtime</scope>
+    </dependency>
+
+    <!-- Lombok -->
+    <dependency>
+      <groupId>org.projectlombok</groupId>
+      <artifactId>lombok</artifactId>
+      <optional>true</optional>
+    </dependency>
+
+    <!-- Validation (optional but useful for DTOs) -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-validation</artifactId>
+    </dependency>
+
+    <!-- Test (optional) -->
+    <dependency>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+      </plugin>
+    </plugins>
+  </build>
+</project>
+
+⚙️ src/main/resources/application.properties
+spring.datasource.url=jdbc:postgresql://localhost:5432/monitoring
+spring.datasource.username=postgres
+spring.datasource.password=your_password
+
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+
+# WebClient (optional) timeouts can be set via HttpClient if needed
+logging.level.org.springframework.web=INFO
+
+🚀 src/main/java/com/example/monitoring/MonitoringApplication.java
+package com.example.monitoring;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
+
+@SpringBootApplication
+@EnableScheduling
+public class MonitoringApplication {
+    public static void main(String[] args) {
+        SpringApplication.run(MonitoringApplication.class, args);
+    }
+}
+
+🧱 Entities
+src/main/java/com/example/monitoring/entity/MonitoredService.java
+package com.example.monitoring.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+@Entity
+@Table(name = "monitored_services")
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+public class MonitoredService {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String applicationName;
+    private String projectName;
+    private String serviceName;       // e.g., Orders API
+    private String serviceType;       // API / UI
+    private String url;
+    private boolean active = true;
+}
+
+src/main/java/com/example/monitoring/entity/ServiceStatus.java
+package com.example.monitoring.entity;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "service_status")
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+public class ServiceStatus {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(optional = false)
+    @JoinColumn(name = "service_id", nullable = false)
+    private MonitoredService service;
+
+    private Integer statusCode;       // 0 = no response / error
+    private Integer responseTimeMs;
+    private LocalDateTime lastChecked;
+    private String remarks;           // error message or "OK"
+}
+
+🧾 DTOs (incl. common DtoMapper)
+src/main/java/com/example/monitoring/dto/MonitoredServiceDTO.java
+package com.example.monitoring.dto;
+
+import jakarta.validation.constraints.NotBlank;
+import lombok.*;
+
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+public class MonitoredServiceDTO {
+    @NotBlank
+    private String applicationName;
+    @NotBlank
+    private String projectName;
+    @NotBlank
+    private String serviceName;
+    @NotBlank
+    private String serviceType; // API / UI
+    @NotBlank
+    private String url;
+    private boolean active = true;
+}
+
+src/main/java/com/example/monitoring/dto/ServiceStatusDTO.java
+package com.example.monitoring.dto;
+
+import lombok.*;
+
+import java.time.LocalDateTime;
+
+@Getter @Setter @NoArgsConstructor @AllArgsConstructor @Builder
+public class ServiceStatusDTO {
+    private String applicationName;
+    private String projectName;
+    private String serviceName;
+    private String serviceType;
+    private String url;
+    private Integer statusCode;
+    private Integer responseTimeMs;
+    private LocalDateTime lastChecked;
+    private String remarks;
+}
+
+✅ Common mapper (as requested)
+src/main/java/com/example/monitoring/dto/DtoMapper.java
+package com.example.monitoring.dto;
+
+import org.modelmapper.ModelMapper;
+
+public final class DtoMapper {
+
+    private static final ModelMapper mapper = new ModelMapper();
+
+    private DtoMapper() {}
+
+    public static <D, E> D toDto(E entity, Class<D> dtoClass) {
+        return mapper.map(entity, dtoClass);
+    }
+
+    public static <E, D> E toEntity(D dto, Class<E> entityClass) {
+        return mapper.map(dto, entityClass);
+    }
+}
+
+
+Note: We’re using a static ModelMapper instance here so you don’t need any @Bean or config class. Import via import static com.example.monitoring.dto.DtoMapper.*;.
+
+🗃️ Repositories
+src/main/java/com/example/monitoring/repository/MonitoredServiceRepository.java
+package com.example.monitoring.repository;
+
+import com.example.monitoring.entity.MonitoredService;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+import java.util.List;
+
+public interface MonitoredServiceRepository extends JpaRepository<MonitoredService, Long> {
+    List<MonitoredService> findByActiveTrue();
+}
+
+src/main/java/com/example/monitoring/repository/ServiceStatusRepository.java
+package com.example.monitoring.repository;
+
+import com.example.monitoring.entity.ServiceStatus;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ServiceStatusRepository extends JpaRepository<ServiceStatus, Long> {
+}
+
+🧠 Service (WebClient + persist + DTO via DtoMapper)
+src/main/java/com/example/monitoring/service/HealthCheckService.java
+package com.example.monitoring.service;
+
+import com.example.monitoring.dto.ServiceStatusDTO;
+import com.example.monitoring.entity.MonitoredService;
+import com.example.monitoring.entity.ServiceStatus;
+import com.example.monitoring.repository.ServiceStatusRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Mono;
+
+import java.time.Duration;
+import java.time.LocalDateTime;
+
+import static com.example.monitoring.dto.DtoMapper.toDto;
+
+@Service
+@RequiredArgsConstructor
+public class HealthCheckService {
+
+    private final ServiceStatusRepository statusRepository;
+    private final WebClient webClient = WebClient.builder().build();
+
+    /** Reactive, returns a Mono and persists result */
+    public Mono<ServiceStatusDTO> checkServiceReactive(MonitoredService service) {
+        long start = System.currentTimeMillis();
+
+        return webClient.get()
+                .uri(service.getUrl())
+                .retrieve()
+                .toBodilessEntity()
+                .timeout(Duration.ofSeconds(5))
+                .map(resp -> saveAndMap(service, resp.getStatusCode().value(), start, "OK"))
+                .onErrorResume(e -> Mono.just(saveAndMap(service, 0, start, e.getMessage())));
+    }
+
+    /** Blocking helper for controller paths that prefer immediate response */
+    public ServiceStatusDTO checkServiceBlocking(MonitoredService service) {
+        return checkServiceReactive(service).block();
+    }
+
+    private ServiceStatusDTO saveAndMap(MonitoredService svc, int status, long start, String remarks) {
+        int rt = (int) (System.currentTimeMillis() - start);
+        ServiceStatus entity = ServiceStatus.builder()
+                .service(svc)
+                .statusCode(status)
+                .responseTimeMs(rt)
+                .lastChecked(LocalDateTime.now())
+                .remarks(remarks)
+                .build();
+        statusRepository.save(entity);
+
+        ServiceStatusDTO dto = toDto(svc, ServiceStatusDTO.class);
+        dto.setStatusCode(status);
+        dto.setResponseTimeMs(rt);
+        dto.setLastChecked(entity.getLastChecked());
+        dto.setRemarks(remarks);
+        return dto;
+    }
+}
+
+⏱ Scheduler (hourly, parallel)
+src/main/java/com/example/monitoring/scheduler/MonitoringScheduler.java
+package com.example.monitoring.scheduler;
+
+import com.example.monitoring.repository.MonitoredServiceRepository;
+import com.example.monitoring.service.HealthCheckService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+import reactor.core.publisher.Flux;
+
+@Component
+@RequiredArgsConstructor
+public class MonitoringScheduler {
+
+    private final MonitoredServiceRepository serviceRepository;
+    private final HealthCheckService healthCheckService;
+
+    // Every hour at :00
+    @Scheduled(cron = "0 0 * * * *")
+    public void checkAllServicesHourly() {
+        Flux.fromIterable(serviceRepository.findByActiveTrue())
+                .flatMap(healthCheckService::checkServiceReactive, 20) // parallelism 20
+                .doOnNext(dto -> System.out.printf("Hourly check: %s -> %s%n",
+                        dto.getServiceName(), dto.getStatusCode()))
+                .subscribe();
+    }
+}
+
+🌐 Controller (uses DtoMapper + global errors)
+src/main/java/com/example/monitoring/controller/MonitoringController.java
+package com.example.monitoring.controller;
+
+import com.example.monitoring.dto.MonitoredServiceDTO;
+import com.example.monitoring.dto.ServiceStatusDTO;
+import com.example.monitoring.entity.MonitoredService;
+import com.example.monitoring.exception.ResourceNotFoundException;
+import com.example.monitoring.repository.MonitoredServiceRepository;
+import com.example.monitoring.service.HealthCheckService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+
+import java.util.List;
+
+import static com.example.monitoring.dto.DtoMapper.*;
+
+@RestController
+@RequestMapping("/api/monitor")
+@RequiredArgsConstructor
+public class MonitoringController {
+
+    private final MonitoredServiceRepository serviceRepository;
+    private final HealthCheckService healthCheckService;
+
+    @PostMapping("/services")
+    public MonitoredServiceDTO addService(@Valid @RequestBody MonitoredServiceDTO dto) {
+        MonitoredService entity = toEntity(dto, MonitoredService.class);
+        return toDto(serviceRepository.save(entity), MonitoredServiceDTO.class);
+    }
+
+    @GetMapping("/services")
+    public List<MonitoredServiceDTO> listServices() {
+        return serviceRepository.findAll().stream()
+                .map(s -> toDto(s, MonitoredServiceDTO.class))
+                .toList();
+    }
+
+    @GetMapping("/services/{id}")
+    public MonitoredServiceDTO getService(@PathVariable Long id) {
+        MonitoredService entity = serviceRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Service not found: " + id));
+        return toDto(entity, MonitoredServiceDTO.class);
+    }
+
+    /** Manual trigger (reactive) */
+    @GetMapping("/check/{id}")
+    public Mono<ServiceStatusDTO> checkServiceNow(@PathVariable Long id) {
+        MonitoredService svc = serviceRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Service not found: " + id));
+        return healthCheckService.checkServiceReactive(svc);
+    }
+
+    /** Manual trigger for all (reactive/parallel) */
+    @GetMapping("/check-all-now")
+    public Flux<ServiceStatusDTO> checkAllNow() {
+        return Flux.fromIterable(serviceRepository.findByActiveTrue())
+                .flatMap(healthCheckService::checkServiceReactive, 20);
+    }
+}
+
+🛡 Global Exception Handling
+src/main/java/com/example/monitoring/exception/ResourceNotFoundException.java
+package com.example.monitoring.exception;
+
+public class ResourceNotFoundException extends RuntimeException {
+    public ResourceNotFoundException(String message) {
+        super(message);
+    }
+}
+
+src/main/java/com/example/monitoring/exception/GlobalExceptionHandler.java
+package com.example.monitoring.exception;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+import java.time.LocalDateTime;
+import java.util.HashMap;
+import java.util.Map;
+
+@RestControllerAdvice
+public class GlobalExceptionHandler {
+
+    @ExceptionHandler(ResourceNotFoundException.class)
+    public ResponseEntity<Map<String, Object>> notFound(ResourceNotFoundException ex) {
+        return build(HttpStatus.NOT_FOUND, ex.getMessage());
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, Object>> validation(MethodArgumentNotValidException ex) {
+        String msg = ex.getBindingResult().getFieldErrors().stream()
+                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
+                .findFirst().orElse("Validation error");
+        return build(HttpStatus.BAD_REQUEST, msg);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<Map<String, Object>> generic(Exception ex) {
+        return build(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage());
+    }
+
+    private ResponseEntity<Map<String, Object>> build(HttpStatus status, String message) {
+        Map<String, Object> body = new HashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("status", status.value());
+        body.put("error", status.getReasonPhrase());
+        body.put("message", message);
+        return ResponseEntity.status(status).body(body);
+    }
+}
+
+✅ How to use
+
+Run the app (make sure PostgreSQL is up and credentials match application.properties).
+
+Add a service
+POST /api/monitor/services
+
+{
+  "applicationName": "PaymentsApp",
+  "projectName": "Order Management",
+  "serviceName": "Orders API",
+  "serviceType": "API",
+  "url": "https://httpstat.us/200",
+  "active": true
+}
+
+
+Manual check (single)
+GET /api/monitor/check/{id}
+
+Manual check (all active)
+GET /api/monitor/check-all-now
+
+Scheduler runs every hour and logs checks automatically.
+
+If you want, I can add:
+
+History endpoints (e.g., last N checks per service),
+
+Alerting (email/Slack on DOWN),
+
+Configurable timeouts & retries,
+
+Tagging/env fields (prod/stage/dev).
+
+Tell me which you want next and I’ll drop the code.
+
+Unlock more with Plus
+ChatGPT Plus gives you higher limits, smarter models, and Sora for video.
+Get Plus
+
+ChatGPT can mak
