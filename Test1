@@ -1,34 +1,73 @@
-@Scheduled(fixedRate = 3600000) // every 1 hour
-public void checkServices() {
-    List<MonitoredService> services = serviceRepository.findAll();
+package com.example.monitoring.scheduler;
 
-    for (MonitoredService service : services) {
-        String healthStatus = "UNKNOWN";
+import com.example.monitoring.entity.MonitoredService;
+import com.example.monitoring.entity.ServiceStatus;
+import com.example.monitoring.repository.MonitoredServiceRepository;
+import com.example.monitoring.repository.ServiceStatusRepository;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.RequiredArgsConstructor;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.function.client.WebClient;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Component
+@RequiredArgsConstructor
+public class HealthCheckScheduler {
+
+    private final MonitoredServiceRepository serviceRepository;
+    private final ServiceStatusRepository statusRepository;
+    private final WebClient webClient;
+    private final ObjectMapper objectMapper;
+
+    /**
+     * Runs every 1 hour and checks all monitored services in parallel.
+     */
+    @Scheduled(fixedRate = 3600000)  // 1 hour = 3600000 ms
+    public void checkServicesReactive() {
+        List<MonitoredService> services = serviceRepository.findAll();
+
+        Flux.fromIterable(services)
+            .flatMap(this::checkServiceHealth)   // parallel checks
+            .collectList()
+            .block(); // wait until all checks are done
+    }
+
+    private Mono<MonitoredService> checkServiceHealth(MonitoredService service) {
+        return webClient.get()
+                .uri(service.getUrl())
+                .retrieve()
+                .bodyToMono(String.class)
+                .map(response -> processResponse(service, response, null))
+                .onErrorResume(ex -> Mono.just(processResponse(service, null, ex)));
+    }
+
+    private MonitoredService processResponse(MonitoredService service, String response, Throwable ex) {
+        String healthStatus;
         String remarks;
 
-        try {
-            String response = webClient.get()
-                    .uri(service.getUrl())
-                    .retrieve()
-                    .bodyToMono(String.class)
-                    .block();
-
-            if (response != null && response.contains("\"status\"")) {
-                JsonNode node = objectMapper.readTree(response);
-                if (node.has("status")) {
-                    healthStatus = node.get("status").asText(); // "UP"/"DOWN"
-                }
-            } else {
-                healthStatus = "UP";
-            }
-
-            remarks = "OK";
-        } catch (Exception e) {
+        if (ex != null) {
             healthStatus = "DOWN";
-            remarks = e.getMessage();
+            remarks = ex.getMessage();
+        } else {
+            healthStatus = "UP";
+            remarks = "OK";
+
+            // Try parsing JSON for {"status":"UP"}
+            if (response != null && response.contains("\"status\"")) {
+                try {
+                    JsonNode node = objectMapper.readTree(response);
+                    healthStatus = node.has("status") ? node.get("status").asText() : "UP";
+                } catch (Exception ignored) {}
+            }
         }
 
-        // ✅ Save ServiceStatus log
+        // ✅ Save service log
         ServiceStatus status = ServiceStatus.builder()
                 .service(service)
                 .healthStatus(healthStatus)
@@ -37,16 +76,18 @@ public void checkServices() {
                 .build();
         statusRepository.save(status);
 
-        // ✅ Update MonitoredService latest info
+        // ✅ Update latest status in monitored service
         service.setActive("UP".equalsIgnoreCase(healthStatus));
         service.setLatestHealthStatus(healthStatus);
         service.setLastChecked(LocalDateTime.now());
         serviceRepository.save(service);
 
-        // ✅ Keep only last 7 logs for this service
+        // ✅ Keep only last 7 logs per service
         List<ServiceStatus> logs = statusRepository.findByServiceOrderByLastCheckedDesc(service);
         if (logs.size() > 7) {
             statusRepository.deleteAll(logs.subList(7, logs.size()));
         }
+
+        return service;
     }
 }
