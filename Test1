@@ -1,63 +1,52 @@
-@Service
-public class MonitoringScheduler {
+@Scheduled(fixedRate = 3600000) // every 1 hour
+public void checkServices() {
+    List<MonitoredService> services = serviceRepository.findAll();
 
-    private final MonitoredServiceRepository serviceRepository;
-    private final ServiceStatusRepository statusRepository;
-    private final WebClient webClient;
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    for (MonitoredService service : services) {
+        String healthStatus = "UNKNOWN";
+        String remarks;
 
-    public MonitoringScheduler(MonitoredServiceRepository serviceRepository,
-                               ServiceStatusRepository statusRepository,
-                               WebClient.Builder webClientBuilder) {
-        this.serviceRepository = serviceRepository;
-        this.statusRepository = statusRepository;
-        this.webClient = webClientBuilder.build();
-    }
+        try {
+            String response = webClient.get()
+                    .uri(service.getUrl())
+                    .retrieve()
+                    .bodyToMono(String.class)
+                    .block();
 
-    @Scheduled(fixedRate = 3600000) // every 1 hour
-    public void checkServices() {
-        List<MonitoredService> services = serviceRepository.findAll();
-
-        for (MonitoredService service : services) {
-            String healthStatus = "UNKNOWN";
-            String remarks;
-
-            try {
-                String response = webClient.get()
-                        .uri(service.getUrl())
-                        .retrieve()
-                        .bodyToMono(String.class)
-                        .block();
-
-                if (response != null && response.contains("\"status\"")) {
-                    JsonNode node = objectMapper.readTree(response);
-                    if (node.has("status")) {
-                        healthStatus = node.get("status").asText(); // "UP" / "DOWN"
-                    }
-                } else {
-                    healthStatus = "UP"; // assume OK if response exists but no JSON
+            if (response != null && response.contains("\"status\"")) {
+                JsonNode node = objectMapper.readTree(response);
+                if (node.has("status")) {
+                    healthStatus = node.get("status").asText(); // "UP"/"DOWN"
                 }
-
-                remarks = "OK";
-            } catch (Exception e) {
-                healthStatus = "DOWN";
-                remarks = e.getMessage();
+            } else {
+                healthStatus = "UP";
             }
 
-            // Save new log
-            ServiceStatus status = ServiceStatus.builder()
-                    .service(service)
-                    .healthStatus(healthStatus)
-                    .lastChecked(LocalDateTime.now())
-                    .remarks(remarks)
-                    .build();
-            statusRepository.save(status);
+            remarks = "OK";
+        } catch (Exception e) {
+            healthStatus = "DOWN";
+            remarks = e.getMessage();
+        }
 
-            // ✅ Keep only last 7 logs per service
-            List<ServiceStatus> logs = statusRepository.findByServiceOrderByLastCheckedDesc(service);
-            if (logs.size() > 7) {
-                statusRepository.deleteAll(logs.subList(7, logs.size()));
-            }
+        // ✅ Save ServiceStatus log
+        ServiceStatus status = ServiceStatus.builder()
+                .service(service)
+                .healthStatus(healthStatus)
+                .lastChecked(LocalDateTime.now())
+                .remarks(remarks)
+                .build();
+        statusRepository.save(status);
+
+        // ✅ Update MonitoredService latest info
+        service.setActive("UP".equalsIgnoreCase(healthStatus));
+        service.setLatestHealthStatus(healthStatus);
+        service.setLastChecked(LocalDateTime.now());
+        serviceRepository.save(service);
+
+        // ✅ Keep only last 7 logs for this service
+        List<ServiceStatus> logs = statusRepository.findByServiceOrderByLastCheckedDesc(service);
+        if (logs.size() > 7) {
+            statusRepository.deleteAll(logs.subList(7, logs.size()));
         }
     }
 }
