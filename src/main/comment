@@ -105,3 +105,36 @@ class LucidSparkServiceTest extends BaseSparkTest {
         assertTrue(outDir.exists());
     }
 }
+
+
+
+import org.junit.jupiter.api.Test;
+import java.io.File;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class DataPatrimonyUVServiceTest extends BaseSparkTest {
+
+    @Test
+    void testExtractPatrimony() {
+        LucidSparkService lucidService = new LucidSparkService();
+        lucidService.builder = new SparkSessionBuilder();
+        lucidService.commonService = new CommonService();
+        lucidService.setEnvironment();
+
+        DataPatrimonyUVService dataService = new DataPatrimonyUVService();
+        dataService.adlsGen2SparkService = lucidService;
+        dataService.lucidSparkService = lucidService;
+
+        BusinessLine bl = new BusinessLine();
+        bl.setInputEnv("AZURE");
+        bl.setOutputEnv("AZURE");
+        bl.setSource("SRC");
+        bl.setOutputPath(System.getProperty("java.io.tmpdir") + "/patrimony_out2");
+
+        ArgsJson args = new ArgsJson(true, new BusinessLine[]{bl});
+
+        dataService.extractPatrimony(args);
+
+        assertTrue(new File(bl.getOutputPath()).exists());
+    }
+}
