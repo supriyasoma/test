@@ -21,3 +21,87 @@ public abstract class BaseSparkTest {
         }
     }
 }
+
+
+
+
+import org.apache.spark.sql.Dataset;
+import org.apache.spark.sql.Row;
+import org.junit.jupiter.api.Test;
+
+import java.io.File;
+import java.util.Collections;
+
+import static org.junit.jupiter.api.Assertions.*;
+
+class LucidSparkServiceTest extends BaseSparkTest {
+
+    private LucidSparkService createService() {
+        LucidSparkService service = new LucidSparkService();
+        service.builder = new SparkSessionBuilder();
+        service.commonService = new CommonService();
+        service.setEnvironment();
+        return service;
+    }
+
+    @Test
+    void testLoadDataFrameWithCsv() throws Exception {
+        // Assume CSV file is already generated in tmp dir
+        String filePath = System.getProperty("java.io.tmpdir") + "/sample.csv";
+
+        Model model = new Model(
+                "sample", "outSample",
+                "csv",
+                new File(filePath).getParent(),
+                ",",
+                true,
+                new CountColumn[]{}
+        );
+
+        LucidSparkService service = createService();
+        Dataset<Row> df = service.loadDataFrame(model);
+
+        assertNotNull(df);
+        assertTrue(df.count() > 0);
+        assertArrayEquals(new String[]{"col1","col2","col3"}, df.columns());
+    }
+
+    @Test
+    void testLoadDataFrameWithAvro() {
+        // Assume Avro folder is already generated in tmp dir
+        String folderPath = System.getProperty("java.io.tmpdir") + "/sample_avro";
+
+        Model model = new Model(
+                "sample_avro", "outAvro",
+                "avro",
+                folderPath,
+                ",",
+                true,
+                new CountColumn[]{}
+        );
+
+        LucidSparkService service = createService();
+        Dataset<Row> df = service.loadDataFrame(model);
+
+        assertNotNull(df);
+        assertTrue(df.count() > 0);
+        assertTrue(df.columns().length > 0);
+    }
+
+    @Test
+    void testWritePatrimony() {
+        BusinessLine bl = new BusinessLine();
+        bl.setOutputPath(System.getProperty("java.io.tmpdir") + "/patrimony_out");
+
+        Patrimony p = new Patrimony(
+                "BL1", "SRC", "DS1", "v1", "1.0",
+                "model1", "dataName", "String", "100MB", "struct1", "true"
+        );
+
+        LucidSparkService service = createService();
+        service.writePatrimony(bl, Collections.singletonList(p));
+
+        File outDir = new File(bl.getOutputPath());
+        assertTrue(outDir.exists());
+    }
+}
